@@ -8,8 +8,10 @@ import { FindEspacoByIdUseCase } from './application/use-cases/find-espaco-by-id
 import { UpdateEspacoUseCase } from './application/use-cases/update-espaco.use-case';
 import { DeleteEspacoUseCase } from './application/use-cases/delete-espaco.use-case';
 import { EspacosService } from './espacos.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
+  imports: [AuthModule],
   controllers: [EspacosController],
   providers: [
     {

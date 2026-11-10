@@ -9,7 +9,10 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthSessionGuard } from '../../../auth/auth-session.guard';
+import { AdminRoleGuard } from '../../../auth/admin-role.guard';
 import { CreateUsuarioDto } from '../dto/create-usuario.dto';
 import { UpdateUsuarioDto } from '../dto/update-usuario.dto';
 import { CreateUsuarioUseCase } from '../../application/use-cases/create-usuario.use-case';
@@ -39,12 +42,14 @@ export class UsuariosController {
   }
 
   @Post()
+  @UseGuards(AuthSessionGuard, AdminRoleGuard)
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() dto: CreateUsuarioDto) {
     return await this.createUsuarioUseCase.execute(dto);
   }
 
   @Patch(':id')
+  @UseGuards(AuthSessionGuard, AdminRoleGuard)
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateUsuarioDto,
@@ -53,6 +58,7 @@ export class UsuariosController {
   }
 
   @Delete(':id')
+  @UseGuards(AuthSessionGuard, AdminRoleGuard)
   async delete(@Param('id', ParseIntPipe) id: number) {
     return await this.deleteUsuarioUseCase.execute(id);
   }

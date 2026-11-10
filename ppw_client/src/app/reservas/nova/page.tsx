@@ -6,7 +6,7 @@ import { useReservas } from '@/components/reservas/reserva-provider';
 
 export default function NovaReserva() {
   const router = useRouter();
-  const { usuarios, espacos, criarReserva, loading } = useReservas();
+  const { usuarios, espacos, criarReserva, loading, authUser } = useReservas();
 
   const [usuarioId, setUsuarioId] = useState('');
   const [espacoId, setEspacoId] = useState('');
@@ -23,7 +23,13 @@ export default function NovaReserva() {
     setErro('');
     setSalvando(true);
     try {
-      const reserva = await criarReserva({ usuarioId: Number(usuarioId), espacoId: Number(espacoId), data, horarioInicio, horarioFim });
+      const reserva = await criarReserva({
+        usuarioId: authUser?.papel === 'CLIENTE' ? authUser.id : Number(usuarioId),
+        espacoId: Number(espacoId),
+        data,
+        horarioInicio,
+        horarioFim,
+      });
       router.push(`/reservas/${reserva.id}`);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível solicitar a reserva.');
@@ -38,6 +44,16 @@ export default function NovaReserva() {
         <div className="text-slate-400 animate-pulse">Carregando dados...</div>
       </div>
     );
+
+  if (!authUser) {
+    return (
+      <div className="max-w-xl space-y-4 rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
+        <h1 className="text-xl font-semibold text-white">Entre para reservar</h1>
+        <p className="text-sm text-slate-400">A reserva ficará vinculada à sua conta.</p>
+        <Link href="/login" className="inline-block rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white">Entrar ou criar conta</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-xl space-y-6">
@@ -59,7 +75,9 @@ export default function NovaReserva() {
           </div>
         )}
 
-        <label className="block">
+        {authUser.papel === 'CLIENTE' ? (
+          <p className="text-sm text-slate-300">Reserva para: <strong>{authUser.nome}</strong></p>
+        ) : <label className="block">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Usuário</span>
           <select
             required
@@ -70,7 +88,7 @@ export default function NovaReserva() {
             <option value="">Selecione um usuário</option>
             {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
           </select>
-        </label>
+        </label>}
 
         <label className="block">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Espaço</span>

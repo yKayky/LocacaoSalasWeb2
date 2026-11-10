@@ -43,7 +43,10 @@ export class InMemoryReservaRepository implements ReservaRepository {
     return [];
   }
 
-  create(data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>): Promise<Reserva> {
+  create(
+    data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>,
+    _autorId: number,
+  ): Promise<Reserva> {
     const id = this.reservas.reduce((maior, item) => Math.max(maior, item.id), 0) + 1;
     const agora = new Date().toISOString();
     const nova = new Reserva({

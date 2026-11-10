@@ -9,7 +9,10 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthSessionGuard } from '../../../auth/auth-session.guard';
+import { AdminRoleGuard } from '../../../auth/admin-role.guard';
 import { CreateEspacoDto } from '../dto/create-espaco.dto';
 import { UpdateEspacoDto } from '../dto/update-espaco.dto';
 import { CreateEspacoUseCase } from '../../application/use-cases/create-espaco.use-case';
@@ -39,12 +42,14 @@ export class EspacosController {
   }
 
   @Post()
+  @UseGuards(AuthSessionGuard, AdminRoleGuard)
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() dto: CreateEspacoDto) {
     return await this.createEspacoUseCase.execute(dto);
   }
 
   @Patch(':id')
+  @UseGuards(AuthSessionGuard, AdminRoleGuard)
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateEspacoDto,
@@ -53,6 +58,7 @@ export class EspacosController {
   }
 
   @Delete(':id')
+  @UseGuards(AuthSessionGuard, AdminRoleGuard)
   async delete(@Param('id', ParseIntPipe) id: number) {
     return await this.deleteEspacoUseCase.execute(id);
   }

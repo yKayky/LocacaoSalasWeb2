@@ -7,6 +7,7 @@ import { FindReservaByIdUseCase } from './application/use-cases/find-reserva-by-
 import { CreateReservaUseCase } from './application/use-cases/create-reserva.use-case';
 import { UpdateReservaUseCase } from './application/use-cases/update-reserva.use-case';
 import { DeleteReservaUseCase } from './application/use-cases/delete-reserva.use-case';
+import type { AuthenticatedUser } from '../auth/authenticated-user';
 
 @Injectable()
 export class ReservasService {
@@ -26,12 +27,12 @@ export class ReservasService {
     return await this.findByIdUseCase.execute(id);
   }
 
-  async create(dto: CreateReservaDto): Promise<Reserva> {
-    return await this.createUseCase.execute(dto);
+  async create(dto: CreateReservaDto, actor: AuthenticatedUser): Promise<Reserva> {
+    return await this.createUseCase.execute(dto, actor);
   }
 
-  async update(id: number, dto: UpdateReservaDto): Promise<Reserva> {
-    return await this.updateUseCase.execute(id, dto);
+  async update(id: number, dto: UpdateReservaDto, actor: AuthenticatedUser): Promise<Reserva> {
+    return await this.updateUseCase.execute(id, dto, actor);
   }
 
   async delete(id: number): Promise<{ success: boolean; message: string }> {

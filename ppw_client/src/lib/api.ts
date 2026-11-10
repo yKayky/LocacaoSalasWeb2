@@ -2,10 +2,17 @@ import { Reserva, DadosReserva, Espaco, Usuario } from '@/types/reserva';
 
 const API_URL = 'http://localhost:8000';
 
+export interface AuthUser {
+  id: number;
+  nome: string;
+  papel: 'CLIENTE' | 'OPERADOR' | 'ADMIN';
+}
+
 async function requisicao<T>(caminho: string, opcoes?: RequestInit): Promise<T> {
   try {
     const resposta = await fetch(`${API_URL}${caminho}`, {
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       ...opcoes,
     });
     if (!resposta.ok) {
@@ -27,6 +34,13 @@ async function requisicao<T>(caminho: string, opcoes?: RequestInit): Promise<T> 
     throw erro;
   }
 }
+
+export const registrar = (dados: { nome: string; email: string; senha: string }) =>
+  requisicao<AuthUser>('/auth/registrar', { method: 'POST', body: JSON.stringify(dados) });
+export const entrar = (dados: { email: string; senha: string }) =>
+  requisicao<AuthUser>('/auth/login', { method: 'POST', body: JSON.stringify(dados) });
+export const usuarioAtual = () => requisicao<AuthUser>('/auth/me');
+export const sair = () => requisicao<{ success: boolean }>('/auth/logout', { method: 'POST' });
 
 // Reservas
 export const buscarReservas = () => requisicao<Reserva[]>('/reservas');

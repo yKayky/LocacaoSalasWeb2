@@ -1,7 +1,7 @@
 import { Reserva, StatusReserva } from '../entities/reserva.entity';
 
 export interface TransicaoAuditoria {
-  autorId?: number;
+  autorId: number;
   justificativa: string;
   checkInReal?: string;
   checkOutReal?: string;
@@ -22,7 +22,10 @@ export abstract class ReservaRepository {
   abstract findAll(): Promise<Reserva[]> | Reserva[];
   abstract findById(id: number): Promise<Reserva | null> | Reserva | null;
   abstract findHistory(id: number): Promise<ReservaHistorico[]> | ReservaHistorico[];
-  abstract create(data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>): Promise<Reserva> | Reserva;
+  abstract create(
+    data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>,
+    autorId: number,
+  ): Promise<Reserva> | Reserva;
   abstract update(id: number, data: Partial<Reserva>): Promise<Reserva | null> | Reserva | null;
   abstract transitionStatus(
     id: number,

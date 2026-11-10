@@ -8,6 +8,8 @@ import { ReservaRepository } from '../../domain/repositories/reserva.repository'
 import { UsuarioRepository } from '../../../usuarios/domain/repositories/usuario.repository';
 import { EspacoRepository } from '../../../espacos/domain/repositories/espaco.repository';
 import { Reserva } from '../../domain/entities/reserva.entity';
+import { AuthenticatedUser } from '../../../auth/authenticated-user';
+import { ReservaPermissaoPolicy } from '../policies/reserva-permissao.policy';
 
 export interface UpdateReservaInput {
   usuarioId?: number;
@@ -25,14 +27,19 @@ export class UpdateReservaUseCase {
     private readonly espacoRepository: EspacoRepository,
   ) {}
 
-  async execute(id: number, input: UpdateReservaInput): Promise<Reserva> {
+  async execute(id: number, input: UpdateReservaInput, actor: AuthenticatedUser): Promise<Reserva> {
     const reserva = await this.reservaRepository.findById(id);
     if (!reserva) {
       throw new NotFoundException('Reserva não encontrada.');
     }
 
+    ReservaPermissaoPolicy.validarEdicao(actor, reserva.usuarioId);
+    if (actor.papel === 'CLIENTE' && input.usuarioId !== undefined && input.usuarioId !== actor.id) {
+      throw new BadRequestException('Não é permitido transferir uma reserva para outro usuário.');
+    }
+
     if (reserva.status !== 'PENDENTE') {
-      throw new BadRequestException('S� � poss�vel editar uma reserva pendente.');
+      throw new BadRequestException('Só é possível editar uma reserva pendente.');
     }
 
     const usuarioId = input.usuarioId ?? reserva.usuarioId;

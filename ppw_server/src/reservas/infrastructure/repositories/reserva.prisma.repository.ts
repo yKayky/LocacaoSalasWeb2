@@ -73,7 +73,10 @@ export class ReservaPrismaRepository implements ReservaRepository {
     });
   }
 
-  async create(data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>): Promise<Reserva> {
+  async create(
+    data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>,
+    autorId: number,
+  ): Promise<Reserva> {
     const reserva = await this.prisma.$transaction(async (tx) => {
       await this.lockSlot(tx, data.espacoId, data.data);
       await this.ensureSlotAvailable(tx, {
@@ -96,6 +99,7 @@ export class ReservaPrismaRepository implements ReservaRepository {
           reservaId: criada.id,
           estadoAnterior: null,
           novoEstado: 'PENDENTE',
+          autorId,
           justificativa: 'Reserva criada.',
         },
       });

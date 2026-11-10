@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsPositive, IsString, Matches, MinLength } from 'class-validator';
+import { IsIn, IsString, Matches, MinLength } from 'class-validator';
 import { AcaoReserva } from '../../domain/entities/reserva-transicao';
 
 export class AcaoReservaDto {
@@ -10,8 +10,4 @@ export class AcaoReservaDto {
   @Matches(/\S/, { message: 'A justificativa não pode ficar vazia.' })
   justificativa!: string;
 
-  @IsOptional()
-  @IsInt()
-  @IsPositive()
-  autorId?: number;
 }

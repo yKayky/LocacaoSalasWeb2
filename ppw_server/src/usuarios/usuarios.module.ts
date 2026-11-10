@@ -8,8 +8,10 @@ import { FindUsuarioByIdUseCase } from './application/use-cases/find-usuario-by-
 import { UpdateUsuarioUseCase } from './application/use-cases/update-usuario.use-case';
 import { DeleteUsuarioUseCase } from './application/use-cases/delete-usuario.use-case';
 import { UsuariosService } from './usuarios.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
+  imports: [AuthModule],
   controllers: [UsuariosController],
   providers: [
     {

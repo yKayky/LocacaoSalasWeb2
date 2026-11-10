@@ -7,6 +7,7 @@ import {
   criarReserva as criarNaApi,
   atualizarReserva as atualizarNaApi,
   transicionarReserva as transicionarNaApi,
+  usuarioAtual,
   criarUsuario as criarUsuarioNaApi,
   atualizarUsuario as atualizarUsuarioNaApi,
   excluirUsuario as excluirUsuarioNaApi,
@@ -16,6 +17,7 @@ import {
 } from '@/lib/api';
 
 import { Reserva, DadosReserva, Espaco, Usuario, StatusReserva } from '@/types/reserva';
+import { AuthUser } from '@/lib/api';
 
 type Contexto = {
   reservas: Reserva[];
@@ -23,6 +25,7 @@ type Contexto = {
   espacos: Espaco[];
   loading: boolean;
   error: string;
+  authUser: AuthUser | null;
   criarReserva: (dados: DadosReserva) => Promise<Reserva>;
   editarReserva: (id: number, dados: Partial<Reserva>) => Promise<Reserva>;
   alterarStatus: (id: number, status: StatusReserva, justificativa: string) => Promise<Reserva>;
@@ -42,6 +45,7 @@ export function ReservaProvider({ children }: { children: ReactNode }) {
   const [espacos, setEspacos] = useState<Espaco[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
     async function iniciar() {
@@ -54,6 +58,7 @@ export function ReservaProvider({ children }: { children: ReactNode }) {
         setUsuarios(catalogoUsuarios);
         setEspacos(catalogoEspacos);
         setReservas(listaReservas);
+        setAuthUser(await usuarioAtual().catch(() => null));
       } catch (erro) {
         setError(erro instanceof Error ? erro.message : 'Não foi possível carregar os dados.');
       } finally {
@@ -134,6 +139,7 @@ export function ReservaProvider({ children }: { children: ReactNode }) {
         espacos,
         loading,
         error,
+        authUser,
         criarReserva,
         editarReserva,
         alterarStatus,

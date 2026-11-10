@@ -29,6 +29,7 @@ export default function DetalheReserva() {
     usuarios,
     espacos,
     loading,
+    authUser,
     alterarStatus,
     editarReserva,
   } = useReservas();
@@ -66,6 +67,11 @@ export default function DetalheReserva() {
   const usuario = usuarios.find((item) => item.id === reserva.usuarioId);
   const espaco = espacos.find((item) => item.id === reserva.espacoId);
   const acao = proximaAcao[reserva.status];
+  const isManager = authUser?.papel === 'ADMIN' || authUser?.papel === 'OPERADOR';
+  const podeEditar = !!authUser && reserva.status === 'PENDENTE' &&
+    (isManager || (authUser.papel === 'CLIENTE' && authUser.id === reserva.usuarioId));
+  const podeCancelar = !!authUser && (isManager ||
+    (authUser.papel === 'CLIENTE' && authUser.id === reserva.usuarioId));
   const agora = new Date();
   const fimReserva = new Date(`${reserva.data}T${reserva.horarioFim}:00`);
   const atrasada = reserva.status === 'EM_ANDAMENTO' && agora > fimReserva;
@@ -163,7 +169,7 @@ export default function DetalheReserva() {
 
         {/* Botões de ação */}
         <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-700/50">
-          {acao && (
+          {acao && isManager && (
             <button
               disabled={salvando}
               onClick={() => mudarStatus(acao.status)}
@@ -174,15 +180,15 @@ export default function DetalheReserva() {
           )}
 
           {/* Alterar (Editar) */}
-          <button
+          {podeEditar && <button
             disabled={salvando}
             onClick={() => setEditando(!editando)}
             className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors"
           >
             {editando ? 'Cancelar edição' : 'Alterar Reserva'}
-          </button>
+          </button>}
 
-          {(reserva.status === 'PENDENTE' || reserva.status === 'CONFIRMADA') && (
+          {podeCancelar && (reserva.status === 'PENDENTE' || reserva.status === 'CONFIRMADA') && (
             <button
               disabled={salvando}
               onClick={cancelar}

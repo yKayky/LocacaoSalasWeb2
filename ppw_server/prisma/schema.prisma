@@ -27,6 +27,7 @@ model Usuario {
   reservas  Reserva[]
   historicosReserva HistoricoReserva[] @relation("AutorHistoricoReserva")
   credencial CredencialUsuario?
+  sessoes    SessaoUsuario[]
 
   @@map("usuarios")
 }
@@ -38,6 +39,18 @@ model CredencialUsuario {
   usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@map("credenciais_usuarios")
+}
+
+model SessaoUsuario {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int      @map("usuario_id")
+  tokenHash String   @unique @map("token_hash") @db.Char(64)
+  expiraEm  DateTime @map("expira_em")
+  criadaEm  DateTime @default(now()) @map("criada_em")
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, expiraEm])
+  @@map("sessoes_usuarios")
 }
 
 model Espaco {

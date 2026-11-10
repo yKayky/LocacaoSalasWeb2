@@ -8,6 +8,7 @@ import { ReservaRepository } from '../../domain/repositories/reserva.repository'
 import { UsuarioRepository } from '../../../usuarios/domain/repositories/usuario.repository';
 import { EspacoRepository } from '../../../espacos/domain/repositories/espaco.repository';
 import { Reserva } from '../../domain/entities/reserva.entity';
+import { AuthenticatedUser } from '../../../auth/authenticated-user';
 
 export interface CreateReservaInput {
   usuarioId: number;
@@ -25,8 +26,9 @@ export class CreateReservaUseCase {
     private readonly espacoRepository: EspacoRepository,
   ) {}
 
-  async execute(input: CreateReservaInput): Promise<Reserva> {
-    const usuario = await this.usuarioRepository.findById(input.usuarioId);
+  async execute(input: CreateReservaInput, actor: AuthenticatedUser): Promise<Reserva> {
+    const usuarioId = actor.papel === 'CLIENTE' ? actor.id : input.usuarioId;
+    const usuario = await this.usuarioRepository.findById(usuarioId);
     if (!usuario) {
       throw new NotFoundException('Usuário não encontrado.');
     }
@@ -52,11 +54,11 @@ export class CreateReservaUseCase {
     }
 
     return await this.reservaRepository.create({
-      usuarioId: input.usuarioId,
+      usuarioId,
       espacoId: input.espacoId,
       data: input.data,
       horarioInicio: input.horarioInicio,
       horarioFim: input.horarioFim,
-    });
+    }, actor.id);
   }
 }

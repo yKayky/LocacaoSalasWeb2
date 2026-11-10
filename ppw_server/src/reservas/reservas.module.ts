@@ -7,12 +7,12 @@ import { FindAllReservasUseCase } from './application/use-cases/find-all-reserva
 import { FindReservaByIdUseCase } from './application/use-cases/find-reserva-by-id.use-case';
 import { UpdateReservaUseCase } from './application/use-cases/update-reserva.use-case';
 import { TransicionarReservaUseCase } from './application/use-cases/transicionar-reserva.use-case';
-import { ReservasService } from './reservas.service';
 import { UsuariosModule } from '../usuarios/usuarios.module';
 import { EspacosModule } from '../espacos/espacos.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [UsuariosModule, EspacosModule],
+  imports: [UsuariosModule, EspacosModule, AuthModule],
   controllers: [ReservasController],
   providers: [
     {
@@ -24,7 +24,6 @@ import { EspacosModule } from '../espacos/espacos.module';
     FindReservaByIdUseCase,
     UpdateReservaUseCase,
     TransicionarReservaUseCase,
-    ReservasService,
   ],
   exports: [
     ReservaRepository,
@@ -33,7 +32,6 @@ import { EspacosModule } from '../espacos/espacos.module';
     FindReservaByIdUseCase,
     UpdateReservaUseCase,
     TransicionarReservaUseCase,
-    ReservasService,
   ],
 })
 export class ReservasModule {}

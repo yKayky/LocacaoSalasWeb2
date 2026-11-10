@@ -12,6 +12,7 @@ export default function PaginaReservas() {
     espacos,
     loading,
     error,
+    authUser,
     alterarStatus,
     editarReserva,
   } = useReservas();
@@ -73,7 +74,7 @@ export default function PaginaReservas() {
     setSalvando(true);
     try {
       await editarReserva(reservaEditando.id, {
-        usuarioId: Number(editUsuarioId),
+        usuarioId: authUser?.papel === 'CLIENTE' ? authUser.id : Number(editUsuarioId),
         espacoId: Number(editEspacoId),
         data: editData,
         horarioInicio: editHorarioInicio,
@@ -96,6 +97,8 @@ export default function PaginaReservas() {
       alert(e instanceof Error ? e.message : 'Não foi possível atualizar a reserva.');
     }
   }
+
+  const isManager = authUser?.papel === 'ADMIN' || authUser?.papel === 'OPERADOR';
 
   return (
     <div className="space-y-6">
@@ -148,7 +151,9 @@ export default function PaginaReservas() {
               </button>
             </div>
 
-            <label className="block">
+            {authUser?.papel === 'CLIENTE' ? (
+              <p className="text-sm text-slate-300">Reserva para: <strong>{authUser.nome}</strong></p>
+            ) : <label className="block">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Usuário *</span>
               <select
                 required
@@ -162,7 +167,7 @@ export default function PaginaReservas() {
                   </option>
                 ))}
               </select>
-            </label>
+            </label>}
 
             <label className="block">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Espaço / Sala *</span>
@@ -329,7 +334,7 @@ export default function PaginaReservas() {
                 {/* Ações: Status, Alterar, Excluir, Detalhes */}
                 <div className="space-y-2 pt-3 border-t border-slate-700/50">
                   <div className="flex flex-wrap items-center gap-2">
-                    {(reserva.status === 'PENDENTE' || reserva.status === 'CONFIRMADA') && (
+                    {isManager && (reserva.status === 'PENDENTE' || reserva.status === 'CONFIRMADA') && (
                       <button
                         onClick={() => mudarStatus(reserva, reserva.status === 'PENDENTE' ? 'CONFIRMADA' : 'EM_ANDAMENTO')}
                         className="flex items-center gap-1.5 rounded-lg bg-indigo-600/20 px-2.5 py-1.5 text-xs font-semibold text-indigo-400 hover:bg-indigo-600/30 transition-colors"
@@ -340,7 +345,7 @@ export default function PaginaReservas() {
                         {reserva.status === 'PENDENTE' ? 'Confirmar' : 'Check-in'}
                       </button>
                     )}
-                    {reserva.status === 'EM_ANDAMENTO' && (
+                    {isManager && reserva.status === 'EM_ANDAMENTO' && (
                       <button
                         onClick={() => mudarStatus(reserva, 'FINALIZADA')}
                         className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-600/30 transition-colors"
@@ -353,6 +358,8 @@ export default function PaginaReservas() {
                     )}
 
                     {/* Botão Alterar */}
+                    {reserva.status === 'PENDENTE' && (isManager ||
+                      (authUser?.papel === 'CLIENTE' && authUser.id === reserva.usuarioId)) && (
                     <button
                       type="button"
                       onClick={() => iniciarEdicao(reserva)}
@@ -363,6 +370,7 @@ export default function PaginaReservas() {
                       </svg>
                       Alterar
                     </button>
+                    )}
 
 
                     <Link
