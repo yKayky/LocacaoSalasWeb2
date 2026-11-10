@@ -14,7 +14,6 @@ export default function PaginaReservas() {
     error,
     alterarStatus,
     editarReserva,
-    excluirReserva,
   } = useReservas();
 
   // Filtros
@@ -31,7 +30,6 @@ export default function PaginaReservas() {
   const [editHorarioInicio, setEditHorarioInicio] = useState('');
   const [editHorarioFim, setEditHorarioFim] = useState('');
 
-  const [reservaExcluindo, setReservaExcluindo] = useState<Reserva | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [mensagemErro, setMensagemErro] = useState('');
 
@@ -89,18 +87,13 @@ export default function PaginaReservas() {
     }
   }
 
-  // Confirmar exclusão
-  async function confirmarExclusao() {
-    if (!reservaExcluindo) return;
-    setMensagemErro('');
-    setSalvando(true);
+  async function mudarStatus(reserva: Reserva, status: Reserva['status']) {
+    const justificativa = window.prompt('Informe a justificativa para esta mudança:');
+    if (justificativa === null) return;
     try {
-      await excluirReserva(reservaExcluindo.id);
-      setReservaExcluindo(null);
-    } catch (err) {
-      setMensagemErro(err instanceof Error ? err.message : 'Erro ao excluir reserva');
-    } finally {
-      setSalvando(false);
+      await alterarStatus(reserva.id, status, justificativa);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Não foi possível atualizar a reserva.');
     }
   }
 
@@ -240,45 +233,6 @@ export default function PaginaReservas() {
         </div>
       )}
 
-      {/* Modal de Confirmação de Exclusão */}
-      {reservaExcluindo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-rose-500/40 p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-3 text-rose-400">
-              <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white">Excluir Reserva</h3>
-                <p className="text-xs text-slate-400">Esta operação é permanente</p>
-              </div>
-            </div>
-            <p className="text-sm text-slate-300">
-              Tem certeza que deseja excluir a reserva <strong>#{reservaExcluindo.id}</strong> (data: {reservaExcluindo.data}, {reservaExcluindo.horarioInicio}-{reservaExcluindo.horarioFim})?
-            </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setReservaExcluindo(null)}
-                className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={salvando}
-                onClick={confirmarExclusao}
-                className="rounded-xl bg-rose-600 px-5 py-2 text-sm font-semibold text-white hover:bg-rose-500 transition-colors disabled:opacity-50"
-              >
-                {salvando ? 'Excluindo...' : 'Sim, Excluir'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Filtros */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 rounded-2xl bg-slate-800/50 border border-slate-700/50 p-4">
         <div className="relative">
@@ -377,30 +331,18 @@ export default function PaginaReservas() {
                   <div className="flex flex-wrap items-center gap-2">
                     {(reserva.status === 'PENDENTE' || reserva.status === 'CONFIRMADA') && (
                       <button
-                        onClick={async () => {
-                          try {
-                            await alterarStatus(reserva.id, 'EM_ANDAMENTO');
-                          } catch (e) {
-                            alert(e instanceof Error ? e.message : 'Erro ao fazer check-in');
-                          }
-                        }}
+                        onClick={() => mudarStatus(reserva, reserva.status === 'PENDENTE' ? 'CONFIRMADA' : 'EM_ANDAMENTO')}
                         className="flex items-center gap-1.5 rounded-lg bg-indigo-600/20 px-2.5 py-1.5 text-xs font-semibold text-indigo-400 hover:bg-indigo-600/30 transition-colors"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14" />
                         </svg>
-                        Check-in
+                        {reserva.status === 'PENDENTE' ? 'Confirmar' : 'Check-in'}
                       </button>
                     )}
                     {reserva.status === 'EM_ANDAMENTO' && (
                       <button
-                        onClick={async () => {
-                          try {
-                            await alterarStatus(reserva.id, 'FINALIZADA');
-                          } catch (e) {
-                            alert(e instanceof Error ? e.message : 'Erro ao fazer check-out');
-                          }
-                        }}
+                        onClick={() => mudarStatus(reserva, 'FINALIZADA')}
                         className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-600/30 transition-colors"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -422,17 +364,6 @@ export default function PaginaReservas() {
                       Alterar
                     </button>
 
-                    {/* Botão Excluir */}
-                    <button
-                      type="button"
-                      onClick={() => setReservaExcluindo(reserva)}
-                      className="flex items-center gap-1 rounded-lg border border-rose-500/30 px-2.5 py-1.5 text-xs font-medium text-rose-400 hover:bg-rose-500/10 transition-colors"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Excluir
-                    </button>
 
                     <Link
                       href={`/reservas/${reserva.id}`}

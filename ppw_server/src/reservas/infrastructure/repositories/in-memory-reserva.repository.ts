@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Reserva } from '../../domain/entities/reserva.entity';
-import { ReservaRepository } from '../../domain/repositories/reserva.repository';
+import { ReservaHistorico, ReservaRepository, TransicaoAuditoria } from '../../domain/repositories/reserva.repository';
+import { StatusReserva } from '../../domain/entities/reserva.entity';
 
 @Injectable()
 export class InMemoryReservaRepository implements ReservaRepository {
@@ -36,6 +37,10 @@ export class InMemoryReservaRepository implements ReservaRepository {
   findById(id: number): Promise<Reserva | null> {
     const reserva = this.reservas.find((item) => item.id === id);
     return Promise.resolve(reserva ? { ...reserva } : null);
+  }
+
+  findHistory(_id: number): ReservaHistorico[] {
+    return [];
   }
 
   create(data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>): Promise<Reserva> {
@@ -77,10 +82,23 @@ export class InMemoryReservaRepository implements ReservaRepository {
     return Promise.resolve({ ...atualizada });
   }
 
-  delete(id: number): Promise<boolean> {
-    const index = this.reservas.findIndex((item) => item.id === id);
-    if (index === -1) return Promise.resolve(false);
-    this.reservas.splice(index, 1);
-    return Promise.resolve(true);
+  async transitionStatus(
+    id: number,
+    estadoEsperado: StatusReserva,
+    novoEstado: StatusReserva,
+    auditoria: TransicaoAuditoria,
+  ): Promise<Reserva | null> {
+    const atual = await this.findById(id);
+    if (!atual || atual.status !== estadoEsperado) return null;
+    return this.update(id, {
+      status: novoEstado,
+      updatedAt: new Date().toISOString(),
+      ...(auditoria.checkInReal ? { checkInReal: auditoria.checkInReal } : {}),
+      ...(auditoria.checkOutReal ? { checkOutReal: auditoria.checkOutReal } : {}),
+    });
+  }
+
+  delete(_id: number): Promise<boolean> {
+    throw new ConflictException('Reservas não podem ser excluídas; use a ação CANCELAR para preservar o histórico.');
   }
 }

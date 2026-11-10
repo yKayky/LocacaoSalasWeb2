@@ -18,6 +18,7 @@ model Usuario {
   id        Int       @id @default(autoincrement())
   nome      String    @db.VarChar(150)
   reservas  Reserva[]
+  historicosReserva HistoricoReserva[] @relation("AutorHistoricoReserva")
 
   @@map("usuarios")
 }
@@ -50,8 +51,24 @@ model Reserva {
   valorExcedente         Decimal?      @db.Decimal(10, 2) @map("valor_excedente")
   usuario                Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   espaco                 Espaco        @relation(fields: [espacoId], references: [id], onDelete: Restrict)
+  historicos             HistoricoReserva[]
 
   @@index([usuarioId])
   @@index([espacoId, data])
   @@map("reservas")
+}
+
+model HistoricoReserva {
+  idRegistro       Int           @id @default(autoincrement()) @map("id_registro")
+  reservaId        Int           @map("reserva_id")
+  estadoAnterior   StatusReserva? @map("estado_anterior")
+  novoEstado       StatusReserva @map("novo_estado")
+  autorId          Int?          @map("autor_id")
+  justificativa    String        @db.Text
+  timestamp        DateTime      @default(now())
+  reserva          Reserva       @relation(fields: [reservaId], references: [id], onDelete: Restrict)
+  autor            Usuario?      @relation("AutorHistoricoReserva", fields: [autorId], references: [id], onDelete: SetNull)
+
+  @@index([reservaId, timestamp])
+  @@map("historico_reservas")
 }

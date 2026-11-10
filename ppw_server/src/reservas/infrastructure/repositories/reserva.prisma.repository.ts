@@ -2,7 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { Prisma } from '@prisma/client';
 import { Reserva, StatusReserva } from '../../domain/entities/reserva.entity';
-import { ReservaRepository } from '../../domain/repositories/reserva.repository';
+import { ReservaHistorico, ReservaRepository, TransicaoAuditoria } from '../../domain/repositories/reserva.repository';
 
 @Injectable()
 export class ReservaPrismaRepository implements ReservaRepository {
@@ -65,6 +65,14 @@ export class ReservaPrismaRepository implements ReservaRepository {
     return reserva ? this.toEntity(reserva) : null;
   }
 
+  async findHistory(id: number): Promise<ReservaHistorico[]> {
+    return this.prisma.historicoReserva.findMany({
+      where: { reservaId: id },
+      include: { autor: { select: { id: true, nome: true } } },
+      orderBy: { timestamp: 'asc' },
+    });
+  }
+
   async create(data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>): Promise<Reserva> {
     const reserva = await this.prisma.$transaction(async (tx) => {
       await this.lockSlot(tx, data.espacoId, data.data);
@@ -74,7 +82,7 @@ export class ReservaPrismaRepository implements ReservaRepository {
         inicio: data.horarioInicio,
         fim: data.horarioFim,
       });
-      return tx.reserva.create({
+      const criada = await tx.reserva.create({
         data: {
           usuarioId: data.usuarioId,
           espacoId: data.espacoId,
@@ -83,6 +91,15 @@ export class ReservaPrismaRepository implements ReservaRepository {
           horarioFim: data.horarioFim,
         },
       });
+      await tx.historicoReserva.create({
+        data: {
+          reservaId: criada.id,
+          estadoAnterior: null,
+          novoEstado: 'PENDENTE',
+          justificativa: 'Reserva criada.',
+        },
+      });
+      return criada;
     });
     return this.toEntity(reserva);
   }
@@ -133,8 +150,45 @@ export class ReservaPrismaRepository implements ReservaRepository {
     return reserva ? this.toEntity(reserva) : null;
   }
 
-  async delete(id: number): Promise<boolean> {
-    const result = await this.prisma.reserva.deleteMany({ where: { id } });
-    return result.count > 0;
+  async transitionStatus(
+    id: number,
+    estadoEsperado: StatusReserva,
+    novoEstado: StatusReserva,
+    auditoria: TransicaoAuditoria,
+  ): Promise<Reserva | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const atual = await tx.reserva.findUnique({ where: { id } });
+      if (!atual || atual.status !== estadoEsperado) return null;
+
+      const dadosReserva: Record<string, unknown> = {
+        status: novoEstado,
+        updatedAt: new Date(),
+      };
+      if (auditoria.checkInReal) dadosReserva.checkInReal = new Date(auditoria.checkInReal);
+      if (auditoria.checkOutReal) dadosReserva.checkOutReal = new Date(auditoria.checkOutReal);
+
+      const resultado = await tx.reserva.updateMany({
+        where: { id, status: estadoEsperado },
+        data: dadosReserva as any,
+      });
+      if (resultado.count === 0) return null;
+
+      await tx.historicoReserva.create({
+        data: {
+          reservaId: id,
+          estadoAnterior: estadoEsperado,
+          novoEstado,
+          autorId: auditoria.autorId,
+          justificativa: auditoria.justificativa,
+        },
+      });
+
+      const atualizada = await tx.reserva.findUnique({ where: { id } });
+      return atualizada ? this.toEntity(atualizada) : null;
+    });
+  }
+
+  async delete(_id: number): Promise<boolean> {
+    throw new ConflictException('Reservas não podem ser excluídas; use a ação CANCELAR para preservar o histórico.');
   }
 }

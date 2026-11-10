@@ -6,7 +6,6 @@ import { CreateReservaUseCase } from './application/use-cases/create-reserva.use
 import { FindAllReservasUseCase } from './application/use-cases/find-all-reservas.use-case';
 import { FindReservaByIdUseCase } from './application/use-cases/find-reserva-by-id.use-case';
 import { UpdateReservaUseCase } from './application/use-cases/update-reserva.use-case';
-import { DeleteReservaUseCase } from './application/use-cases/delete-reserva.use-case';
 import { TransicionarReservaUseCase } from './application/use-cases/transicionar-reserva.use-case';
 import { ReservasService } from './reservas.service';
 import { UsuariosModule } from '../usuarios/usuarios.module';
@@ -24,7 +23,6 @@ import { EspacosModule } from '../espacos/espacos.module';
     FindAllReservasUseCase,
     FindReservaByIdUseCase,
     UpdateReservaUseCase,
-    DeleteReservaUseCase,
     TransicionarReservaUseCase,
     ReservasService,
   ],
@@ -34,7 +32,6 @@ import { EspacosModule } from '../espacos/espacos.module';
     FindAllReservasUseCase,
     FindReservaByIdUseCase,
     UpdateReservaUseCase,
-    DeleteReservaUseCase,
     TransicionarReservaUseCase,
     ReservasService,
   ],

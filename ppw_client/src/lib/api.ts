@@ -31,14 +31,29 @@ async function requisicao<T>(caminho: string, opcoes?: RequestInit): Promise<T> 
 // Reservas
 export const buscarReservas = () => requisicao<Reserva[]>('/reservas');
 export const buscarReservaPorId = (id: number) => requisicao<Reserva>(`/reservas/${id}`);
+export const buscarHistoricoReserva = (id: number) =>
+  requisicao<Array<{
+    idRegistro: number;
+    estadoAnterior: Reserva['status'] | null;
+    novoEstado: Reserva['status'];
+    autor: { id: number; nome: string } | null;
+    justificativa: string;
+    timestamp: string;
+  }>>(`/reservas/${id}/historico`);
 export const criarReserva = (dados: DadosReserva) =>
   requisicao<Reserva>('/reservas', { method: 'POST', body: JSON.stringify(dados) });
 export const atualizarReserva = (
   id: number,
-  dados: Partial<DadosReserva & Pick<Reserva, 'status'>>,
+  dados: Partial<DadosReserva>,
 ) => requisicao<Reserva>(`/reservas/${id}`, { method: 'PATCH', body: JSON.stringify(dados) });
-export const excluirReserva = (id: number) =>
-  requisicao<{ success: boolean; message: string }>(`/reservas/${id}`, { method: 'DELETE' });
+export const transicionarReserva = (
+  id: number,
+  acao: 'CONFIRMAR' | 'INICIAR' | 'FINALIZAR' | 'CANCELAR',
+  justificativa: string,
+) => requisicao<Reserva>(`/reservas/${id}/acoes`, {
+  method: 'POST',
+  body: JSON.stringify({ acao, justificativa }),
+});
 export const sincronizarReservas = (reservas: Reserva[]) =>
   requisicao<Reserva[]>('/reservas/sincronizar', { method: 'PUT', body: JSON.stringify(reservas) });
 

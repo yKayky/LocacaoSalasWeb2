@@ -1,13 +1,14 @@
 'use client';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { FormEvent, useEffect, useState } from 'react';
 import { ReservaStatusBadge } from '@/components/reservas/reserva-status-badge';
 import { useReservas } from '@/components/reservas/reserva-provider';
 import { StatusReserva } from '@/types/reserva';
+import { buscarHistoricoReserva } from '@/lib/api';
 
 const proximaAcao: Partial<Record<StatusReserva, { texto: string; status: StatusReserva; cor: string }>> = {
-  PENDENTE: { texto: 'Fazer Check-in', status: 'EM_ANDAMENTO', cor: 'bg-indigo-600 hover:bg-indigo-500 text-white' },
+  PENDENTE: { texto: 'Confirmar reserva', status: 'CONFIRMADA', cor: 'bg-indigo-600 hover:bg-indigo-500 text-white' },
   CONFIRMADA: { texto: 'Fazer Check-in', status: 'EM_ANDAMENTO', cor: 'bg-indigo-600 hover:bg-indigo-500 text-white' },
   EM_ANDAMENTO: { texto: 'Fazer Check-out', status: 'FINALIZADA', cor: 'bg-emerald-600 hover:bg-emerald-500 text-white' },
 };
@@ -23,7 +24,6 @@ function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function DetalheReserva() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const {
     reservas,
     usuarios,
@@ -31,13 +31,16 @@ export default function DetalheReserva() {
     loading,
     alterarStatus,
     editarReserva,
-    excluirReserva,
   } = useReservas();
 
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [editando, setEditando] = useState(false);
-  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
+  const [historico, setHistorico] = useState<Awaited<ReturnType<typeof buscarHistoricoReserva>>>([]);
+
+  useEffect(() => {
+    buscarHistoricoReserva(Number(id)).then(setHistorico).catch(() => setHistorico([]));
+  }, [id]);
 
   const reserva = reservas.find((item) => item.id === Number(id));
 
@@ -68,10 +71,13 @@ export default function DetalheReserva() {
   const atrasada = reserva.status === 'EM_ANDAMENTO' && agora > fimReserva;
 
   async function mudarStatus(status: StatusReserva) {
+    const justificativa = window.prompt('Informe a justificativa para esta mudança:');
+    if (justificativa === null) return;
     setErro('');
     setSalvando(true);
     try {
-      await alterarStatus(reserva!.id, status);
+      await alterarStatus(reserva!.id, status, justificativa);
+      setHistorico(await buscarHistoricoReserva(reserva!.id));
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível atualizar a reserva.');
     } finally {
@@ -106,19 +112,6 @@ export default function DetalheReserva() {
     }
   }
 
-  async function excluir() {
-    setSalvando(true);
-    setErro('');
-    try {
-      await excluirReserva(reserva!.id);
-      router.push('/reservas');
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não foi possível excluir a reserva.');
-      setSalvando(false);
-      setConfirmandoExclusao(false);
-    }
-  }
-
   return (
     <div className="max-w-2xl space-y-6">
       {/* Voltar */}
@@ -128,35 +121,6 @@ export default function DetalheReserva() {
         </svg>
         Voltar para reservas
       </Link>
-
-      {/* Modal de confirmação de exclusão */}
-      {confirmandoExclusao && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-rose-500/40 p-6 space-y-4 shadow-2xl">
-            <h3 className="text-lg font-bold text-white">Excluir Reserva Definitivamente</h3>
-            <p className="text-sm text-slate-300">
-              Tem certeza que deseja excluir esta reserva? Ela será removida completamente do sistema.
-            </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setConfirmandoExclusao(false)}
-                className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={salvando}
-                onClick={excluir}
-                className="rounded-xl bg-rose-600 px-5 py-2 text-sm font-semibold text-white hover:bg-rose-500 transition-colors disabled:opacity-50"
-              >
-                {salvando ? 'Excluindo...' : 'Sim, Excluir'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -228,14 +192,6 @@ export default function DetalheReserva() {
             </button>
           )}
 
-          {/* Excluir permanentemente */}
-          <button
-            disabled={salvando}
-            onClick={() => setConfirmandoExclusao(true)}
-            className="rounded-xl border border-rose-500/30 px-4 py-2.5 text-sm font-semibold text-rose-400 hover:bg-rose-500/10 transition-colors ml-auto"
-          >
-            Excluir Reserva
-          </button>
         </div>
 
         {/* Formulário de edição (Alterar) */}
@@ -315,6 +271,27 @@ export default function DetalheReserva() {
           </form>
         )}
       </div>
+
+      <section className="rounded-2xl bg-slate-800/50 border border-slate-700/50 p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-white">Histórico de estados</h2>
+        {historico.length === 0 ? (
+          <p className="text-sm text-slate-400">Nenhuma alteração registrada.</p>
+        ) : (
+          <ol className="space-y-3">
+            {historico.map((item) => (
+              <li key={item.idRegistro} className="border-l-2 border-indigo-500/50 pl-4">
+                <p className="text-sm font-medium text-slate-200">
+                  {item.estadoAnterior ?? 'NOVA'} → {item.novoEstado}
+                </p>
+                <p className="text-sm text-slate-400">{item.justificativa}</p>
+                <p className="text-xs text-slate-500">
+                  {item.autor?.nome ?? 'Autor não identificado'} · {new Date(item.timestamp).toLocaleString('pt-BR')}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
     </div>
   );
 }

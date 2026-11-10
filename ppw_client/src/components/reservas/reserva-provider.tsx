@@ -6,7 +6,7 @@ import {
   buscarUsuarios,
   criarReserva as criarNaApi,
   atualizarReserva as atualizarNaApi,
-  excluirReserva as excluirNaApi,
+  transicionarReserva as transicionarNaApi,
   criarUsuario as criarUsuarioNaApi,
   atualizarUsuario as atualizarUsuarioNaApi,
   excluirUsuario as excluirUsuarioNaApi,
@@ -25,8 +25,7 @@ type Contexto = {
   error: string;
   criarReserva: (dados: DadosReserva) => Promise<Reserva>;
   editarReserva: (id: number, dados: Partial<Reserva>) => Promise<Reserva>;
-  alterarStatus: (id: number, status: StatusReserva) => Promise<Reserva>;
-  excluirReserva: (id: number) => Promise<void>;
+  alterarStatus: (id: number, status: StatusReserva, justificativa: string) => Promise<Reserva>;
   adicionarUsuario: (nome: string) => Promise<Usuario>;
   editarUsuario: (id: number, dados: { nome: string }) => Promise<Usuario>;
   excluirUsuario: (id: number) => Promise<void>;
@@ -77,15 +76,18 @@ export function ReservaProvider({ children }: { children: ReactNode }) {
     return reserva;
   }
 
-  async function alterarStatus(id: number, status: StatusReserva) {
-    const reserva = await atualizarNaApi(id, { status });
+  async function alterarStatus(id: number, status: StatusReserva, justificativa: string) {
+    const acaoPorStatus: Partial<Record<StatusReserva, 'CONFIRMAR' | 'INICIAR' | 'FINALIZAR' | 'CANCELAR'>> = {
+      CONFIRMADA: 'CONFIRMAR',
+      EM_ANDAMENTO: 'INICIAR',
+      FINALIZADA: 'FINALIZAR',
+      CANCELADA: 'CANCELAR',
+    };
+    const acao = acaoPorStatus[status];
+    if (!acao) throw new Error('Ação de estado inválida.');
+    const reserva = await transicionarNaApi(id, acao, justificativa);
     setReservas((prev) => prev.map((item) => (item.id === id ? reserva : item)));
     return reserva;
-  }
-
-  async function excluirReserva(id: number) {
-    await excluirNaApi(id);
-    setReservas((prev) => prev.filter((item) => item.id !== id));
   }
 
   // Usuários
@@ -135,7 +137,6 @@ export function ReservaProvider({ children }: { children: ReactNode }) {
         criarReserva,
         editarReserva,
         alterarStatus,
-        excluirReserva,
         adicionarUsuario,
         editarUsuario,
         excluirUsuario,
