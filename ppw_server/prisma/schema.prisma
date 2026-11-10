@@ -26,8 +26,18 @@ model Usuario {
   papel     PapelUsuario @default(CLIENTE)
   reservas  Reserva[]
   historicosReserva HistoricoReserva[] @relation("AutorHistoricoReserva")
+  credencial CredencialUsuario?
 
   @@map("usuarios")
+}
+
+model CredencialUsuario {
+  usuarioId Int      @id @map("usuario_id")
+  email     String   @unique @db.VarChar(254)
+  senhaHash String   @map("senha_hash") @db.VarChar(255)
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("credenciais_usuarios")
 }
 
 model Espaco {
