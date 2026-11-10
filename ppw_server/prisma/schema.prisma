@@ -14,9 +14,16 @@ enum StatusReserva {
   CANCELADA
 }
 
+enum PapelUsuario {
+  CLIENTE
+  OPERADOR
+  ADMIN
+}
+
 model Usuario {
   id        Int       @id @default(autoincrement())
   nome      String    @db.VarChar(150)
+  papel     PapelUsuario @default(CLIENTE)
   reservas  Reserva[]
   historicosReserva HistoricoReserva[] @relation("AutorHistoricoReserva")
 
