@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StatusReserva {
+  PENDENTE
+  CONFIRMADA
+  EM_ANDAMENTO
+  FINALIZADA
+  CANCELADA
+}
+
+model Usuario {
+  id        Int       @id @default(autoincrement())
+  nome      String    @db.VarChar(150)
+  reservas  Reserva[]
+
+  @@map("usuarios")
+}
+
+model Espaco {
+  id           Int       @id @default(autoincrement())
+  nome         String    @db.VarChar(150)
+  descricao    String    @default("") @db.Text
+  capacidade   Int
+  localizacao  String    @default("") @db.VarChar(255)
+  valorPorHora Decimal   @db.Decimal(10, 2) @map("valor_por_hora")
+  reservas     Reserva[]
+
+  @@map("espacos")
+}
+
+model Reserva {
+  id                     Int           @id @default(autoincrement())
+  usuarioId              Int           @map("usuario_id")
+  espacoId               Int           @map("espaco_id")
+  data                   DateTime      @db.Date
+  horarioInicio          String        @db.VarChar(5) @map("horario_inicio")
+  horarioFim             String        @db.VarChar(5) @map("horario_fim")
+  status                 StatusReserva @default(PENDENTE)
+  createdAt              DateTime      @default(now()) @map("created_at")
+  updatedAt              DateTime      @updatedAt @map("updated_at")
+  checkInReal            DateTime?     @map("check_in_real")
+  checkOutReal           DateTime?     @map("check_out_real")
+  tempoExcedenteMinutos  Int?          @map("tempo_excedente_minutos")
+  valorExcedente         Decimal?      @db.Decimal(10, 2) @map("valor_excedente")
+  usuario                Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  espaco                 Espaco        @relation(fields: [espacoId], references: [id], onDelete: Restrict)
+
+  @@index([usuarioId])
+  @@index([espacoId, data])
+  @@map("reservas")
+}
