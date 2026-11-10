@@ -17,6 +17,8 @@ import { FindAllReservasUseCase } from '../../application/use-cases/find-all-res
 import { FindReservaByIdUseCase } from '../../application/use-cases/find-reserva-by-id.use-case';
 import { UpdateReservaUseCase } from '../../application/use-cases/update-reserva.use-case';
 import { DeleteReservaUseCase } from '../../application/use-cases/delete-reserva.use-case';
+import { TransicionarReservaUseCase } from '../../application/use-cases/transicionar-reserva.use-case';
+import { AcaoReservaDto } from '../dto/acao-reserva.dto';
 
 @Controller('reservas')
 export class ReservasController {
@@ -26,6 +28,7 @@ export class ReservasController {
     private readonly createReservaUseCase: CreateReservaUseCase,
     private readonly updateReservaUseCase: UpdateReservaUseCase,
     private readonly deleteReservaUseCase: DeleteReservaUseCase,
+    private readonly transicionarReservaUseCase: TransicionarReservaUseCase,
   ) {}
 
   @Get()
@@ -50,6 +53,14 @@ export class ReservasController {
     @Body() dto: UpdateReservaDto,
   ) {
     return await this.updateReservaUseCase.execute(id, dto);
+  }
+
+  @Post(':id/acoes')
+  async transicionar(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AcaoReservaDto,
+  ) {
+    return await this.transicionarReservaUseCase.execute(id, dto.acao);
   }
 
   @Delete(':id')

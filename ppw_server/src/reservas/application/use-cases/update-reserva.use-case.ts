@@ -7,7 +7,7 @@ import {
 import { ReservaRepository } from '../../domain/repositories/reserva.repository';
 import { UsuarioRepository } from '../../../usuarios/domain/repositories/usuario.repository';
 import { EspacoRepository } from '../../../espacos/domain/repositories/espaco.repository';
-import { Reserva, StatusReserva } from '../../domain/entities/reserva.entity';
+import { Reserva } from '../../domain/entities/reserva.entity';
 
 export interface UpdateReservaInput {
   usuarioId?: number;
@@ -15,7 +15,6 @@ export interface UpdateReservaInput {
   data?: string;
   horarioInicio?: string;
   horarioFim?: string;
-  status?: StatusReserva;
 }
 
 @Injectable()
@@ -30,6 +29,10 @@ export class UpdateReservaUseCase {
     const reserva = await this.reservaRepository.findById(id);
     if (!reserva) {
       throw new NotFoundException('Reserva não encontrada.');
+    }
+
+    if (reserva.status !== 'PENDENTE') {
+      throw new BadRequestException('S� � poss�vel editar uma reserva pendente.');
     }
 
     const usuarioId = input.usuarioId ?? reserva.usuarioId;
@@ -52,26 +55,6 @@ export class UpdateReservaUseCase {
       throw new BadRequestException('O horário de fim deve ser maior que o horário de início.');
     }
 
-    let checkInReal = reserva.checkInReal;
-    let checkOutReal = reserva.checkOutReal;
-
-    if (input.status && input.status !== reserva.status) {
-      this.validarTransicao(reserva.status, input.status);
-
-      if (input.status === 'EM_ANDAMENTO') {
-        const agora = new Date();
-        const inicioReserva = new Date(`${data}T${horarioInicio}:00`);
-        if (agora < inicioReserva) {
-          throw new BadRequestException('Não é possível realizar o check-in antes do horário agendado.');
-        }
-        checkInReal = agora.toISOString();
-      }
-
-      if (input.status === 'FINALIZADA' && reserva.status === 'EM_ANDAMENTO') {
-        checkOutReal = new Date().toISOString();
-      }
-    }
-
     const todas = await this.reservaRepository.findAll();
     const conflito = todas.some((r) => {
       if (r.id === id || r.status === 'CANCELADA' || r.status === 'FINALIZADA') return false;
@@ -91,8 +74,6 @@ export class UpdateReservaUseCase {
       data,
       horarioInicio,
       horarioFim,
-      checkInReal,
-      checkOutReal,
       updatedAt: agoraIso,
     });
 
@@ -103,16 +84,4 @@ export class UpdateReservaUseCase {
     return atualizada;
   }
 
-  private validarTransicao(atual: StatusReserva, proximo: StatusReserva) {
-    const permitidas: Record<StatusReserva, StatusReserva[]> = {
-      PENDENTE: ['CONFIRMADA', 'EM_ANDAMENTO', 'CANCELADA'],
-      CONFIRMADA: ['EM_ANDAMENTO', 'CANCELADA'],
-      EM_ANDAMENTO: ['FINALIZADA'],
-      FINALIZADA: [],
-      CANCELADA: [],
-    };
-    if (!permitidas[atual]?.includes(proximo)) {
-      throw new BadRequestException(`Transição inválida: ${atual} → ${proximo}.`);
-    }
-  }
 }

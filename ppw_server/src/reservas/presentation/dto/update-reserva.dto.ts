@@ -1,5 +1,4 @@
-import { IsIn, IsInt, IsOptional, Matches } from 'class-validator';
-import { StatusReserva } from '../../domain/entities/reserva.entity';
+import { IsInt, IsOptional, Matches } from 'class-validator';
 
 export class UpdateReservaDto {
   @IsOptional()
@@ -22,9 +21,4 @@ export class UpdateReservaDto {
   @Matches(/^\d{2}:\d{2}$/, { message: 'O horário de fim deve estar no formato HH:mm' })
   horarioFim?: string;
 
-  @IsOptional()
-  @IsIn(['PENDENTE', 'CONFIRMADA', 'EM_ANDAMENTO', 'FINALIZADA', 'CANCELADA'], {
-    message: 'Status inválido',
-  })
-  status?: StatusReserva;
 }
