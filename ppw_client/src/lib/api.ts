@@ -8,6 +8,12 @@ export interface AuthUser {
   papel: 'CLIENTE' | 'OPERADOR' | 'ADMIN';
 }
 
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+  }
+}
+
 async function requisicao<T>(caminho: string, opcoes?: RequestInit): Promise<T> {
   try {
     const resposta = await fetch(`${API_URL}${caminho}`, {
@@ -17,10 +23,11 @@ async function requisicao<T>(caminho: string, opcoes?: RequestInit): Promise<T> 
     });
     if (!resposta.ok) {
       const erro = await resposta.json().catch(() => ({}));
-      throw new Error(
+      throw new ApiError(
         Array.isArray(erro.message)
           ? erro.message.join(', ')
           : erro.message || 'Não foi possível concluir a solicitação.',
+        resposta.status,
       );
     }
     // Para DELETE que pode retornar status 204 ou JSON com mensagem

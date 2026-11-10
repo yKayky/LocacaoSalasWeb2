@@ -1,6 +1,7 @@
 import { Reserva, StatusReserva } from '../entities/reserva.entity';
 
 export interface TransicaoAuditoria {
+  updatedAtEsperado: string;
   autorId: number;
   justificativa: string;
   checkInReal?: string;
@@ -26,7 +27,7 @@ export abstract class ReservaRepository {
     data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>,
     autorId: number,
   ): Promise<Reserva> | Reserva;
-  abstract update(id: number, data: Partial<Reserva>): Promise<Reserva | null> | Reserva | null;
+  abstract update(id: number, data: Partial<Reserva>, updatedAtEsperado: string): Promise<Reserva | null> | Reserva | null;
   abstract transitionStatus(
     id: number,
     estadoEsperado: StatusReserva,

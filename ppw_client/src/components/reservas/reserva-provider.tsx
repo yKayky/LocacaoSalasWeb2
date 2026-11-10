@@ -17,7 +17,7 @@ import {
 } from '@/lib/api';
 
 import { Reserva, DadosReserva, Espaco, Usuario, StatusReserva } from '@/types/reserva';
-import { AuthUser } from '@/lib/api';
+import { ApiError, AuthUser } from '@/lib/api';
 
 type Contexto = {
   reservas: Reserva[];
@@ -50,15 +50,19 @@ export function ReservaProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function iniciar() {
       try {
+        const sessao = await usuarioAtual().catch((erro: unknown) => {
+          if (erro instanceof ApiError && erro.status === 401) return null;
+          throw erro;
+        });
+        setAuthUser(sessao);
         const [catalogoUsuarios, catalogoEspacos, listaReservas] = await Promise.all([
           buscarUsuarios(),
           buscarEspacos(),
-          buscarReservas(),
+          sessao ? buscarReservas() : Promise.resolve([]),
         ]);
         setUsuarios(catalogoUsuarios);
         setEspacos(catalogoEspacos);
         setReservas(listaReservas);
-        setAuthUser(await usuarioAtual().catch(() => null));
       } catch (erro) {
         setError(erro instanceof Error ? erro.message : 'Não foi possível carregar os dados.');
       } finally {

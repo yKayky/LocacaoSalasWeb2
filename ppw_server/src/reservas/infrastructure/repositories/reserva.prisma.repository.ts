@@ -14,7 +14,7 @@ export class ReservaPrismaRepository implements ReservaRepository {
     data: string,
   ): Promise<void> {
     const dia = new Date(`${data}T00:00:00.000Z`).getTime() / 86_400_000;
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(${espacoId}, ${dia})`;
+    await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(${espacoId}::integer, ${dia}::integer)`;
   }
 
   private async ensureSlotAvailable(
@@ -108,22 +108,23 @@ export class ReservaPrismaRepository implements ReservaRepository {
     return this.toEntity(reserva);
   }
 
-  async update(id: number, data: Partial<Reserva>): Promise<Reserva | null> {
+  async update(id: number, data: Partial<Reserva>, updatedAtEsperado: string): Promise<Reserva | null> {
     const updateData: Record<string, unknown> = {};
     if (data.usuarioId !== undefined) updateData.usuarioId = data.usuarioId;
     if (data.espacoId !== undefined) updateData.espacoId = data.espacoId;
     if (data.data !== undefined) updateData.data = new Date(`${data.data}T00:00:00.000Z`);
     if (data.horarioInicio !== undefined) updateData.horarioInicio = data.horarioInicio;
     if (data.horarioFim !== undefined) updateData.horarioFim = data.horarioFim;
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.checkInReal !== undefined) updateData.checkInReal = data.checkInReal ? new Date(data.checkInReal) : null;
-    if (data.checkOutReal !== undefined) updateData.checkOutReal = data.checkOutReal ? new Date(data.checkOutReal) : null;
-    if (data.tempoExcedenteMinutos !== undefined) updateData.tempoExcedenteMinutos = data.tempoExcedenteMinutos;
-    if (data.valorExcedente !== undefined) updateData.valorExcedente = data.valorExcedente;
 
     const reserva = await this.prisma.$transaction(async (tx) => {
+      // Serialize edits and transitions before reading the current reservation.
+      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(${id}::bigint)`;
       const atual = await tx.reserva.findUnique({ where: { id } });
       if (!atual) return null;
+      if (atual.status !== 'PENDENTE' || atual.updatedAt.toISOString() !== updatedAtEsperado) {
+        throw new ConflictException('A reserva foi alterada. Atualize a página antes de editar.');
+      }
+      updateData.updatedAt = new Date(Math.max(Date.now(), atual.updatedAt.getTime() + 1));
 
       const slotAnterior = {
         espacoId: atual.espacoId,
@@ -140,14 +141,11 @@ export class ReservaPrismaRepository implements ReservaRepository {
 
       const horarioInicio = data.horarioInicio ?? atual.horarioInicio;
       const horarioFim = data.horarioFim ?? atual.horarioFim;
-      const status = data.status ?? atual.status;
-      if (status !== 'CANCELADA' && status !== 'FINALIZADA') {
-        await this.ensureSlotAvailable(
-          tx,
-          { ...slotNovo, inicio: horarioInicio, fim: horarioFim },
-          id,
-        );
-      }
+      await this.ensureSlotAvailable(
+        tx,
+        { ...slotNovo, inicio: horarioInicio, fim: horarioFim },
+        id,
+      );
 
       return tx.reserva.update({ where: { id }, data: updateData as any });
     });
@@ -161,12 +159,16 @@ export class ReservaPrismaRepository implements ReservaRepository {
     auditoria: TransicaoAuditoria,
   ): Promise<Reserva | null> {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(${id}::bigint)`;
       const atual = await tx.reserva.findUnique({ where: { id } });
       if (!atual || atual.status !== estadoEsperado) return null;
+      if (atual.updatedAt.toISOString() !== auditoria.updatedAtEsperado) {
+        throw new ConflictException('A reserva foi alterada. Atualize a página antes de executar a ação.');
+      }
 
       const dadosReserva: Record<string, unknown> = {
         status: novoEstado,
-        updatedAt: new Date(),
+        updatedAt: new Date(Math.max(Date.now(), atual.updatedAt.getTime() + 1)),
       };
       if (auditoria.checkInReal) dadosReserva.checkInReal = new Date(auditoria.checkInReal);
       if (auditoria.checkOutReal) dadosReserva.checkOutReal = new Date(auditoria.checkOutReal);

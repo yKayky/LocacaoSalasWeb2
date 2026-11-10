@@ -22,6 +22,7 @@ export class TransicionarReservaUseCase {
       throw new BadRequestException('Não é possível iniciar antes do horário agendado.');
     }
     const atualizado = await this.reservaRepository.transitionStatus(id, reserva.status, status, {
+      updatedAtEsperado: reserva.updatedAt,
       autorId: actor.id,
       justificativa: justificativa.trim(),
       ...(acao === 'INICIAR' ? { checkInReal: agora.toISOString() } : {}),

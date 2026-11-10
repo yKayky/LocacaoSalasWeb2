@@ -60,11 +60,14 @@ export class InMemoryReservaRepository implements ReservaRepository {
     return Promise.resolve({ ...nova });
   }
 
-  update(id: number, data: Partial<Reserva>): Promise<Reserva | null> {
+  update(id: number, data: Partial<Reserva>, updatedAtEsperado: string): Promise<Reserva | null> {
     const index = this.reservas.findIndex((item) => item.id === id);
     if (index === -1) return Promise.resolve(null);
 
     const atual = this.reservas[index];
+    if (atual.status !== 'PENDENTE' || atual.updatedAt !== updatedAtEsperado) {
+      throw new ConflictException('A reserva foi alterada. Atualize a página antes de editar.');
+    }
     const atualizada = new Reserva({
       id: atual.id,
       usuarioId: data.usuarioId ?? atual.usuarioId,
@@ -72,9 +75,9 @@ export class InMemoryReservaRepository implements ReservaRepository {
       data: data.data ?? atual.data,
       horarioInicio: data.horarioInicio ?? atual.horarioInicio,
       horarioFim: data.horarioFim ?? atual.horarioFim,
-      status: data.status ?? atual.status,
+      status: atual.status,
       createdAt: atual.createdAt,
-      updatedAt: data.updatedAt ?? new Date().toISOString(),
+      updatedAt: new Date(Math.max(Date.now(), Date.parse(atual.updatedAt) + 1)).toISOString(),
       checkInReal: data.checkInReal ?? atual.checkInReal,
       checkOutReal: data.checkOutReal ?? atual.checkOutReal,
       tempoExcedenteMinutos: data.tempoExcedenteMinutos ?? atual.tempoExcedenteMinutos,
@@ -91,14 +94,16 @@ export class InMemoryReservaRepository implements ReservaRepository {
     novoEstado: StatusReserva,
     auditoria: TransicaoAuditoria,
   ): Promise<Reserva | null> {
-    const atual = await this.findById(id);
+    const atual = this.reservas.find((item) => item.id === id);
     if (!atual || atual.status !== estadoEsperado) return null;
-    return this.update(id, {
-      status: novoEstado,
-      updatedAt: new Date().toISOString(),
-      ...(auditoria.checkInReal ? { checkInReal: auditoria.checkInReal } : {}),
-      ...(auditoria.checkOutReal ? { checkOutReal: auditoria.checkOutReal } : {}),
-    });
+    if (atual.updatedAt !== auditoria.updatedAtEsperado) {
+      throw new ConflictException('A reserva foi alterada. Atualize a página antes de executar a ação.');
+    }
+    atual.status = novoEstado;
+    atual.updatedAt = new Date(Math.max(Date.now(), Date.parse(atual.updatedAt) + 1)).toISOString();
+    if (auditoria.checkInReal) atual.checkInReal = auditoria.checkInReal;
+    if (auditoria.checkOutReal) atual.checkOutReal = auditoria.checkOutReal;
+    return { ...atual };
   }
 
   delete(_id: number): Promise<boolean> {

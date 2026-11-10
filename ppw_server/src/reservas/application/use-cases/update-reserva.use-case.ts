@@ -73,16 +73,13 @@ export class UpdateReservaUseCase {
       throw new ConflictException('O espaço já possui uma reserva conflitante neste horário.');
     }
 
-    const agoraIso = new Date().toISOString();
     const atualizada = await this.reservaRepository.update(id, {
-      ...input,
       usuarioId,
       espacoId,
       data,
       horarioInicio,
       horarioFim,
-      updatedAt: agoraIso,
-    });
+    }, reserva.updatedAt);
 
     if (!atualizada) {
       throw new NotFoundException('Reserva não encontrada.');

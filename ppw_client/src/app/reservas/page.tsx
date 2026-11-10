@@ -55,6 +55,18 @@ export default function PaginaReservas() {
     );
   }
 
+  if (!authUser) {
+    return (
+      <div className="max-w-xl space-y-4 rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
+        <h1 className="text-xl font-semibold text-white">Entre para consultar suas reservas</h1>
+        {error && <p role="alert" className="text-sm text-rose-400">{error}</p>}
+        <Link href="/login" className="inline-block rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white">
+          Entrar ou criar conta
+        </Link>
+      </div>
+    );
+  }
+
   // Iniciar alteração
   function iniciarEdicao(r: Reserva) {
     setReservaEditando(r);
