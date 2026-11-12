@@ -16,23 +16,23 @@ export class EspacosService {
     private readonly deleteUseCase: DeleteEspacoUseCase,
   ) {}
 
-  async findAll(): Promise<Espaco[]> {
-    return await this.findAllUseCase.execute();
+  async findAll(contaId: number): Promise<Espaco[]> {
+    return await this.findAllUseCase.execute(contaId);
   }
 
-  async findOne(id: number): Promise<Espaco> {
-    return await this.findByIdUseCase.execute(id);
+  async findOne(id: number, contaId: number): Promise<Espaco> {
+    return await this.findByIdUseCase.execute(id, contaId);
   }
 
-  async create(dto: Omit<Espaco, 'id'>): Promise<Espaco> {
-    return await this.createUseCase.execute(dto);
+  async create(dto: Omit<Espaco, 'id' | 'contaId'>, contaId: number): Promise<Espaco> {
+    return await this.createUseCase.execute(dto, contaId);
   }
 
-  async update(id: number, dto: Partial<Omit<Espaco, 'id'>>): Promise<Espaco> {
-    return await this.updateUseCase.execute(id, dto);
+  async update(id: number, dto: Partial<Omit<Espaco, 'id' | 'contaId'>>, contaId: number): Promise<Espaco> {
+    return await this.updateUseCase.execute(id, dto, contaId);
   }
 
-  async delete(id: number): Promise<{ success: boolean; message: string }> {
-    return await this.deleteUseCase.execute(id);
+  async delete(id: number, contaId: number): Promise<{ success: boolean; message: string }> {
+    return await this.deleteUseCase.execute(id, contaId);
   }
 }

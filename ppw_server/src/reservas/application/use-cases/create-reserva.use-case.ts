@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
 import { ReservaRepository } from '../../domain/repositories/reserva.repository';
 import { UsuarioRepository } from '../../../usuarios/domain/repositories/usuario.repository';
@@ -27,13 +26,13 @@ export class CreateReservaUseCase {
   ) {}
 
   async execute(input: CreateReservaInput, actor: AuthenticatedUser): Promise<Reserva> {
-    const usuarioId = actor.papel === 'CLIENTE' ? actor.id : input.usuarioId;
-    const usuario = await this.usuarioRepository.findById(usuarioId);
+    const usuarioId = input.usuarioId;
+    const usuario = await this.usuarioRepository.findById(usuarioId, actor.id);
     if (!usuario) {
       throw new NotFoundException('Usuário não encontrado.');
     }
 
-    const espaco = await this.espacoRepository.findById(input.espacoId);
+    const espaco = await this.espacoRepository.findById(input.espacoId, actor.id);
     if (!espaco) {
       throw new NotFoundException('Espaço não encontrado.');
     }
@@ -42,18 +41,8 @@ export class CreateReservaUseCase {
       throw new BadRequestException('O horário de fim deve ser maior que o horário de início.');
     }
 
-    const todas = await this.reservaRepository.findAll();
-    const conflito = todas.some((reserva) => {
-      if (reserva.status === 'CANCELADA' || reserva.status === 'FINALIZADA') return false;
-      if (reserva.espacoId !== input.espacoId || reserva.data !== input.data) return false;
-      return input.horarioInicio < reserva.horarioFim && input.horarioFim > reserva.horarioInicio;
-    });
-
-    if (conflito) {
-      throw new ConflictException('O espaço já possui uma reserva conflitante neste horário.');
-    }
-
     return await this.reservaRepository.create({
+      contaId: actor.id,
       usuarioId,
       espacoId: input.espacoId,
       data: input.data,

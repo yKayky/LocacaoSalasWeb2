@@ -7,6 +7,7 @@ export type StatusReserva =
 
 export class Reserva {
   id: number;
+  contaId: number;
   usuarioId: number;
   espacoId: number;
   data: string;
@@ -22,6 +23,7 @@ export class Reserva {
 
   constructor(props: {
     id: number;
+    contaId: number;
     usuarioId: number;
     espacoId: number;
     data: string;
@@ -36,6 +38,7 @@ export class Reserva {
     valorExcedente?: number;
   }) {
     this.id = props.id;
+    this.contaId = props.contaId;
     this.usuarioId = props.usuarioId;
     this.espacoId = props.espacoId;
     this.data = props.data;

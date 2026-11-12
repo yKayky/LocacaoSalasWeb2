@@ -6,7 +6,7 @@ import { Reserva } from '../../domain/entities/reserva.entity';
 export class FindAllReservasUseCase {
   constructor(private readonly reservaRepository: ReservaRepository) {}
 
-  async execute(): Promise<Reserva[]> {
-    return await this.reservaRepository.findAll();
+  async execute(contaId: number): Promise<Reserva[]> {
+    return await this.reservaRepository.findAll(contaId);
   }
 }

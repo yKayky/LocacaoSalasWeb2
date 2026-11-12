@@ -22,6 +22,9 @@ async function requisicao<T>(caminho: string, opcoes?: RequestInit): Promise<T> 
       ...opcoes,
     });
     if (!resposta.ok) {
+      if (resposta.status === 401 && !caminho.startsWith('/auth/')) {
+        window.dispatchEvent(new Event('sessao-expirada'));
+      }
       const erro = await resposta.json().catch(() => ({}));
       throw new ApiError(
         Array.isArray(erro.message)
@@ -57,6 +60,7 @@ export const buscarHistoricoReserva = (id: number) =>
     idRegistro: number;
     estadoAnterior: Reserva['status'] | null;
     novoEstado: Reserva['status'];
+    autorId: number | null;
     autor: { id: number; nome: string } | null;
     justificativa: string;
     timestamp: string;

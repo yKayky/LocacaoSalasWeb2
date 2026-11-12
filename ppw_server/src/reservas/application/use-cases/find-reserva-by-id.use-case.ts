@@ -6,8 +6,8 @@ import { Reserva } from '../../domain/entities/reserva.entity';
 export class FindReservaByIdUseCase {
   constructor(private readonly reservaRepository: ReservaRepository) {}
 
-  async execute(id: number): Promise<Reserva> {
-    const reserva = await this.reservaRepository.findById(id);
+  async execute(id: number, contaId: number): Promise<Reserva> {
+    const reserva = await this.reservaRepository.findById(id, contaId);
     if (!reserva) {
       throw new NotFoundException('Reserva não encontrada.');
     }

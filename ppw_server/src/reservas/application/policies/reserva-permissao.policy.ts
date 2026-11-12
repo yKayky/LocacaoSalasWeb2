@@ -6,20 +6,21 @@ export class ReservaPermissaoPolicy {
   static validarTransicao(
     actor: AuthenticatedUser,
     acao: AcaoReserva,
-    usuarioReservaId: number,
+    contaReservaId: number,
   ): void {
+    if (actor.id !== contaReservaId) throw new ForbiddenException('A reserva pertence a outra conta.');
     if (actor.papel === 'ADMIN' || actor.papel === 'OPERADOR') return;
-    if (actor.papel === 'CLIENTE' && acao === 'CANCELAR' && actor.id === usuarioReservaId) return;
+    if (actor.papel === 'CLIENTE' && acao === 'CANCELAR' && actor.id === contaReservaId) return;
     throw new ForbiddenException('Seu papel não permite executar esta ação nesta reserva.');
   }
 
-  static validarEdicao(actor: AuthenticatedUser, usuarioReservaId: number): void {
-    if (actor.papel !== 'CLIENTE' || actor.id === usuarioReservaId) return;
+  static validarEdicao(actor: AuthenticatedUser, contaReservaId: number): void {
+    if (actor.id === contaReservaId) return;
     throw new ForbiddenException('Você só pode editar as próprias reservas.');
   }
 
-  static validarLeitura(actor: AuthenticatedUser, usuarioReservaId: number): void {
-    if (actor.papel === 'ADMIN' || actor.papel === 'OPERADOR' || actor.id === usuarioReservaId) return;
+  static validarLeitura(actor: AuthenticatedUser, contaReservaId: number): void {
+    if (actor.id === contaReservaId) return;
     throw new ForbiddenException('Você só pode consultar as próprias reservas.');
   }
 }

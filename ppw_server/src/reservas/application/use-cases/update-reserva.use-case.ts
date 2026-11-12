@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
 import { ReservaRepository } from '../../domain/repositories/reserva.repository';
 import { UsuarioRepository } from '../../../usuarios/domain/repositories/usuario.repository';
@@ -28,15 +27,12 @@ export class UpdateReservaUseCase {
   ) {}
 
   async execute(id: number, input: UpdateReservaInput, actor: AuthenticatedUser): Promise<Reserva> {
-    const reserva = await this.reservaRepository.findById(id);
+    const reserva = await this.reservaRepository.findById(id, actor.id);
     if (!reserva) {
       throw new NotFoundException('Reserva não encontrada.');
     }
 
-    ReservaPermissaoPolicy.validarEdicao(actor, reserva.usuarioId);
-    if (actor.papel === 'CLIENTE' && input.usuarioId !== undefined && input.usuarioId !== actor.id) {
-      throw new BadRequestException('Não é permitido transferir uma reserva para outro usuário.');
-    }
+    ReservaPermissaoPolicy.validarEdicao(actor, reserva.contaId);
 
     if (reserva.status !== 'PENDENTE') {
       throw new BadRequestException('Só é possível editar uma reserva pendente.');
@@ -49,28 +45,17 @@ export class UpdateReservaUseCase {
     const horarioFim = input.horarioFim ?? reserva.horarioFim;
 
     if (input.usuarioId !== undefined) {
-      const usuario = await this.usuarioRepository.findById(usuarioId);
+      const usuario = await this.usuarioRepository.findById(usuarioId, actor.id);
       if (!usuario) throw new NotFoundException('Usuário não encontrado.');
     }
 
     if (input.espacoId !== undefined) {
-      const espaco = await this.espacoRepository.findById(espacoId);
+      const espaco = await this.espacoRepository.findById(espacoId, actor.id);
       if (!espaco) throw new NotFoundException('Espaço não encontrado.');
     }
 
     if (horarioInicio >= horarioFim) {
       throw new BadRequestException('O horário de fim deve ser maior que o horário de início.');
-    }
-
-    const todas = await this.reservaRepository.findAll();
-    const conflito = todas.some((r) => {
-      if (r.id === id || r.status === 'CANCELADA' || r.status === 'FINALIZADA') return false;
-      if (r.espacoId !== espacoId || r.data !== data) return false;
-      return horarioInicio < r.horarioFim && horarioFim > r.horarioInicio;
-    });
-
-    if (conflito) {
-      throw new ConflictException('O espaço já possui uma reserva conflitante neste horário.');
     }
 
     const atualizada = await this.reservaRepository.update(id, {
@@ -79,7 +64,7 @@ export class UpdateReservaUseCase {
       data,
       horarioInicio,
       horarioFim,
-    }, reserva.updatedAt);
+    }, reserva.updatedAt, actor.id);
 
     if (!atualizada) {
       throw new NotFoundException('Reserva não encontrada.');

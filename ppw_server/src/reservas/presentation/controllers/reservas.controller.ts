@@ -39,27 +39,24 @@ export class ReservasController {
   @Get()
   @UseGuards(AuthSessionGuard)
   async findAll(@CurrentUser() actor: AuthenticatedUser) {
-    const reservas = await this.findAllReservasUseCase.execute();
-    return actor.papel === 'CLIENTE'
-      ? reservas.filter((reserva) => reserva.usuarioId === actor.id)
-      : reservas;
+    return this.findAllReservasUseCase.execute(actor.id);
   }
 
   @Get(':id')
   @UseGuards(AuthSessionGuard)
   async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: AuthenticatedUser) {
-    const reserva = await this.findReservaByIdUseCase.execute(id);
-    ReservaPermissaoPolicy.validarLeitura(actor, reserva.usuarioId);
+    const reserva = await this.findReservaByIdUseCase.execute(id, actor.id);
+    ReservaPermissaoPolicy.validarLeitura(actor, reserva.contaId);
     return reserva;
   }
 
   @Get(':id/historico')
   @UseGuards(AuthSessionGuard)
   async historico(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: AuthenticatedUser) {
-    const reserva = await this.reservaRepository.findById(id);
+    const reserva = await this.reservaRepository.findById(id, actor.id);
     if (!reserva) throw new NotFoundException('Reserva não encontrada.');
-    ReservaPermissaoPolicy.validarLeitura(actor, reserva.usuarioId);
-    return this.reservaRepository.findHistory(id);
+    ReservaPermissaoPolicy.validarLeitura(actor, reserva.contaId);
+    return this.reservaRepository.findHistory(id, actor.id);
   }
 
   @Post()

@@ -14,7 +14,7 @@ export interface CreateEspacoInput {
 export class CreateEspacoUseCase {
   constructor(private readonly espacoRepository: EspacoRepository) {}
 
-  async execute(input: CreateEspacoInput): Promise<Espaco> {
+  async execute(input: CreateEspacoInput, contaId: number): Promise<Espaco> {
     if (!input.nome || input.nome.trim() === '') {
       throw new BadRequestException('O nome do espaço é obrigatório.');
     }
@@ -26,6 +26,7 @@ export class CreateEspacoUseCase {
     }
 
     return await this.espacoRepository.create({
+      contaId,
       nome: input.nome.trim(),
       descricao: input.descricao?.trim() || '',
       capacidade: Number(input.capacidade),

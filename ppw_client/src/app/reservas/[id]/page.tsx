@@ -38,10 +38,27 @@ export default function DetalheReserva() {
   const [salvando, setSalvando] = useState(false);
   const [editando, setEditando] = useState(false);
   const [historico, setHistorico] = useState<Awaited<ReturnType<typeof buscarHistoricoReserva>>>([]);
+  const [erroHistorico, setErroHistorico] = useState('');
+  const [historicoCarregado, setHistoricoCarregado] = useState<string | null>(null);
+  const chaveHistorico = authUser ? `${authUser.id}/${id}` : null;
+  const carregandoHistorico = chaveHistorico !== historicoCarregado;
 
   useEffect(() => {
-    buscarHistoricoReserva(Number(id)).then(setHistorico).catch(() => setHistorico([]));
-  }, [id]);
+    if (!authUser) return;
+    let ativo = true;
+    buscarHistoricoReserva(Number(id))
+      .then((registros) => {
+        if (ativo) {
+          setHistorico(registros);
+          setErroHistorico('');
+        }
+      })
+      .catch((error: unknown) => {
+        if (ativo) setErroHistorico(error instanceof Error ? error.message : 'Falha ao carregar histórico.');
+      })
+      .finally(() => { if (ativo) setHistoricoCarregado(chaveHistorico); });
+    return () => { ativo = false; };
+  }, [id, authUser, chaveHistorico]);
 
   const reserva = reservas.find((item) => item.id === Number(id));
 
@@ -51,6 +68,10 @@ export default function DetalheReserva() {
         <div className="text-slate-400 animate-pulse">Carregando detalhes...</div>
       </div>
     );
+  }
+
+  if (!authUser) {
+    return <Link href="/login" className="text-indigo-300">Entre para consultar a reserva</Link>;
   }
 
   if (!reserva) {
@@ -68,22 +89,31 @@ export default function DetalheReserva() {
   const espaco = espacos.find((item) => item.id === reserva.espacoId);
   const acao = proximaAcao[reserva.status];
   const isManager = authUser?.papel === 'ADMIN' || authUser?.papel === 'OPERADOR';
-  const podeEditar = !!authUser && reserva.status === 'PENDENTE' &&
-    (isManager || (authUser.papel === 'CLIENTE' && authUser.id === reserva.usuarioId));
-  const podeCancelar = !!authUser && (isManager ||
-    (authUser.papel === 'CLIENTE' && authUser.id === reserva.usuarioId));
+  const podeEditar = !!authUser && reserva.status === 'PENDENTE';
+  const podeCancelar = !!authUser;
   const agora = new Date();
-  const fimReserva = new Date(`${reserva.data}T${reserva.horarioFim}:00`);
+  const fimReserva = new Date(`${reserva.data}T${reserva.horarioFim}:00-03:00`);
   const atrasada = reserva.status === 'EM_ANDAMENTO' && agora > fimReserva;
 
   async function mudarStatus(status: StatusReserva) {
-    const justificativa = window.prompt('Informe a justificativa para esta mudança:');
+    const justificativasAutomaticas: Partial<Record<StatusReserva, string>> = {
+      CONFIRMADA: 'Reserva confirmada.',
+      EM_ANDAMENTO: 'Check-in realizado.',
+      FINALIZADA: 'Check-out realizado.',
+    };
+    const justificativa = justificativasAutomaticas[status]
+      ?? window.prompt('Informe a justificativa para esta mudança:');
     if (justificativa === null) return;
     setErro('');
     setSalvando(true);
     try {
       await alterarStatus(reserva!.id, status, justificativa);
-      setHistorico(await buscarHistoricoReserva(reserva!.id));
+      setErroHistorico('');
+      try {
+        setHistorico(await buscarHistoricoReserva(reserva!.id));
+      } catch {
+        setErroHistorico('A ação foi concluída. Atualize a página para recarregar o histórico.');
+      }
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível atualizar a reserva.');
     } finally {
@@ -280,7 +310,11 @@ export default function DetalheReserva() {
 
       <section className="rounded-2xl bg-slate-800/50 border border-slate-700/50 p-6 space-y-4">
         <h2 className="text-lg font-semibold text-white">Histórico de estados</h2>
-        {historico.length === 0 ? (
+        {carregandoHistorico ? (
+          <p className="text-sm text-slate-400">Carregando histórico...</p>
+        ) : erroHistorico ? (
+          <p role="alert" className="text-sm text-rose-400">{erroHistorico}</p>
+        ) : historico.length === 0 ? (
           <p className="text-sm text-slate-400">Nenhuma alteração registrada.</p>
         ) : (
           <ol className="space-y-3">
@@ -291,7 +325,7 @@ export default function DetalheReserva() {
                 </p>
                 <p className="text-sm text-slate-400">{item.justificativa}</p>
                 <p className="text-xs text-slate-500">
-                  {item.autor?.nome ?? 'Autor não identificado'} · {new Date(item.timestamp).toLocaleString('pt-BR')}
+                  {item.autor?.nome ?? (item.autorId ? `Usuário #${item.autorId}` : 'Autor não identificado')} · {new Date(item.timestamp).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                 </p>
               </li>
             ))}

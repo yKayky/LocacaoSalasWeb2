@@ -28,6 +28,8 @@ export default function LoginPage() {
         ? await registrar({ ...credenciais, nome: String(dados.get('nome')) })
         : await entrar(credenciais);
       setUsuario(autenticado);
+      // A full navigation reloads the provider's account-specific data after login.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign('/reservas');
     } catch (error) {
       setErro(error instanceof Error ? error.message : 'Não foi possível autenticar.');
@@ -37,9 +39,17 @@ export default function LoginPage() {
   }
 
   async function encerrarSessao() {
-    await sair();
-    setUsuario(null);
-    window.location.reload();
+    setErro('');
+    setCarregando(true);
+    try {
+      await sair();
+      setUsuario(null);
+      window.location.reload();
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : 'Não foi possível sair.');
+    } finally {
+      setCarregando(false);
+    }
   }
 
   return (
@@ -54,7 +64,8 @@ export default function LoginPage() {
       {usuario ? (
         <div className="space-y-4">
           <p className="text-slate-200">Conectado como {usuario.nome} ({usuario.papel}).</p>
-          <button onClick={encerrarSessao} className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white">
+          {erro && <p role="alert" className="text-sm text-rose-400">{erro}</p>}
+          <button disabled={carregando} onClick={encerrarSessao} className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
             Sair
           </button>
           <Link href="/reservas" className="ml-3 text-sm text-indigo-300">Voltar às reservas</Link>
@@ -80,7 +91,7 @@ export default function LoginPage() {
             {carregando ? 'Aguarde...' : modoCadastro ? 'Criar conta' : 'Entrar'}
           </button>
           <button type="button" onClick={() => { setErro(''); setModoCadastro(!modoCadastro); }} className="w-full text-sm text-indigo-300">
-            {modoCadastro ? 'Já tenho uma conta' : 'Criar uma conta de cliente'}
+            {modoCadastro ? 'Já tenho uma conta' : 'Criar uma conta'}
           </button>
         </form>
       )}

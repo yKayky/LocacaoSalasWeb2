@@ -6,8 +6,8 @@ import { Usuario } from '../../domain/entities/usuario.entity';
 export class FindUsuarioByIdUseCase {
   constructor(private readonly usuarioRepository: UsuarioRepository) {}
 
-  async execute(id: number): Promise<Usuario> {
-    const usuario = await this.usuarioRepository.findById(id);
+  async execute(id: number, contaId: number): Promise<Usuario> {
+    const usuario = await this.usuarioRepository.findById(id, contaId);
     if (!usuario) {
       throw new NotFoundException(`Usuário com ID ${id} não encontrado.`);
     }

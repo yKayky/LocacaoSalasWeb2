@@ -16,10 +16,19 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         message: 'A operação envolve um registro vinculado ou uma referência que deixou de existir.',
       },
       P2004: { status: HttpStatus.BAD_REQUEST, message: 'Os dados violam uma regra de integridade do banco.' },
+      P2014: { status: HttpStatus.CONFLICT, message: 'Este registro possui vínculos obrigatórios e não pode ser excluído.' },
       P2025: { status: HttpStatus.NOT_FOUND, message: 'O registro solicitado não foi encontrado.' },
       P2034: { status: HttpStatus.CONFLICT, message: 'Houve uma alteração concorrente. Atualize os dados e tente novamente.' },
     };
-    const error = errors[exception.code];
+    const postgresErrors: Record<string, { status: number; message: string }> = {
+      '23P01': { status: HttpStatus.CONFLICT, message: 'O espaço já possui uma reserva conflitante neste horário.' },
+      '23514': { status: HttpStatus.BAD_REQUEST, message: 'A operação viola uma regra de integridade ou a proteção do histórico.' },
+      '23001': { status: HttpStatus.CONFLICT, message: 'Este registro possui vínculos e não pode ser excluído.' },
+      '40P01': { status: HttpStatus.CONFLICT, message: 'Houve uma alteração concorrente. Atualize os dados e tente novamente.' },
+    };
+    const postgresCode = exception.meta?.code;
+    const error = (typeof postgresCode === 'string' ? postgresErrors[postgresCode] : undefined)
+      ?? errors[exception.code];
     if (!error) this.logger.error(`Falha de persistência com código ${exception.code}`);
     const status = error?.status ?? HttpStatus.INTERNAL_SERVER_ERROR;
     response.status(status).json({

@@ -1,8 +1,12 @@
 import { Reserva, StatusReserva } from '../entities/reserva.entity';
 
+export type DadosNovaReserva = Pick<Reserva, 'contaId' | 'usuarioId' | 'espacoId' | 'data' | 'horarioInicio' | 'horarioFim'>;
+export type DadosEdicaoReserva = Partial<Omit<DadosNovaReserva, 'contaId'>>;
+
 export interface TransicaoAuditoria {
   updatedAtEsperado: string;
   autorId: number;
+  contaId: number;
   justificativa: string;
   checkInReal?: string;
   checkOutReal?: string;
@@ -20,14 +24,14 @@ export interface ReservaHistorico {
 }
 
 export abstract class ReservaRepository {
-  abstract findAll(): Promise<Reserva[]> | Reserva[];
-  abstract findById(id: number): Promise<Reserva | null> | Reserva | null;
-  abstract findHistory(id: number): Promise<ReservaHistorico[]> | ReservaHistorico[];
+  abstract findAll(contaId: number): Promise<Reserva[]> | Reserva[];
+  abstract findById(id: number, contaId: number): Promise<Reserva | null> | Reserva | null;
+  abstract findHistory(id: number, contaId: number): Promise<ReservaHistorico[]> | ReservaHistorico[];
   abstract create(
-    data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>,
+    data: DadosNovaReserva,
     autorId: number,
   ): Promise<Reserva> | Reserva;
-  abstract update(id: number, data: Partial<Reserva>, updatedAtEsperado: string): Promise<Reserva | null> | Reserva | null;
+  abstract update(id: number, data: DadosEdicaoReserva, updatedAtEsperado: string, contaId: number): Promise<Reserva | null> | Reserva | null;
   abstract transitionStatus(
     id: number,
     estadoEsperado: StatusReserva,

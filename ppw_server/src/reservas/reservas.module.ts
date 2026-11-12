@@ -10,11 +10,13 @@ import { TransicionarReservaUseCase } from './application/use-cases/transicionar
 import { UsuariosModule } from '../usuarios/usuarios.module';
 import { EspacosModule } from '../espacos/espacos.module';
 import { AuthModule } from '../auth/auth.module';
+import { reservaGuardasProvider } from './application/policies/reserva-guardas.provider';
 
 @Module({
   imports: [UsuariosModule, EspacosModule, AuthModule],
   controllers: [ReservasController],
   providers: [
+    reservaGuardasProvider,
     {
       provide: ReservaRepository,
       useClass: ReservaPrismaRepository,

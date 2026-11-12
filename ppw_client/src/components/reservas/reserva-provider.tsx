@@ -56,8 +56,8 @@ export function ReservaProvider({ children }: { children: ReactNode }) {
         });
         setAuthUser(sessao);
         const [catalogoUsuarios, catalogoEspacos, listaReservas] = await Promise.all([
-          buscarUsuarios(),
-          buscarEspacos(),
+          sessao ? buscarUsuarios() : Promise.resolve([]),
+          sessao ? buscarEspacos() : Promise.resolve([]),
           sessao ? buscarReservas() : Promise.resolve([]),
         ]);
         setUsuarios(catalogoUsuarios);
@@ -70,6 +70,18 @@ export function ReservaProvider({ children }: { children: ReactNode }) {
       }
     }
     void iniciar();
+  }, []);
+
+  useEffect(() => {
+    function expirarSessao() {
+      setAuthUser(null);
+      setReservas([]);
+      setUsuarios([]);
+      setEspacos([]);
+      setError('Sua sessão expirou. Entre novamente.');
+    }
+    window.addEventListener('sessao-expirada', expirarSessao);
+    return () => window.removeEventListener('sessao-expirada', expirarSessao);
   }, []);
 
   // Reservas

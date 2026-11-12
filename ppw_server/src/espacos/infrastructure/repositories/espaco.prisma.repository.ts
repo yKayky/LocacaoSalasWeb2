@@ -11,13 +11,13 @@ export class EspacoPrismaRepository implements EspacoRepository {
     return new Espaco({ ...record, valorPorHora: Number(record.valorPorHora) });
   }
 
-  async findAll(): Promise<Espaco[]> {
-    const espacos = await this.prisma.espaco.findMany({ orderBy: { id: 'asc' } });
+  async findAll(contaId: number): Promise<Espaco[]> {
+    const espacos = await this.prisma.espaco.findMany({ where: { contaId }, orderBy: { id: 'asc' } });
     return espacos.map((espaco) => this.toEntity(espaco));
   }
 
-  async findById(id: number): Promise<Espaco | null> {
-    const espaco = await this.prisma.espaco.findUnique({ where: { id } });
+  async findById(id: number, contaId: number): Promise<Espaco | null> {
+    const espaco = await this.prisma.espaco.findFirst({ where: { id, contaId } });
     return espaco ? this.toEntity(espaco) : null;
   }
 
@@ -26,14 +26,14 @@ export class EspacoPrismaRepository implements EspacoRepository {
     return this.toEntity(espaco);
   }
 
-  async update(id: number, data: Partial<Omit<Espaco, 'id'>>): Promise<Espaco | null> {
-    const result = await this.prisma.espaco.updateMany({ where: { id }, data });
+  async update(id: number, data: Partial<Omit<Espaco, 'id' | 'contaId'>>, contaId: number): Promise<Espaco | null> {
+    const result = await this.prisma.espaco.updateMany({ where: { id, contaId }, data });
     if (result.count === 0) return null;
-    return this.findById(id);
+    return this.findById(id, contaId);
   }
 
-  async delete(id: number): Promise<boolean> {
-    const result = await this.prisma.espaco.deleteMany({ where: { id } });
+  async delete(id: number, contaId: number): Promise<boolean> {
+    const result = await this.prisma.espaco.deleteMany({ where: { id, contaId } });
     return result.count > 0;
   }
 }

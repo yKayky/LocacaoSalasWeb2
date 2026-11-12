@@ -6,8 +6,8 @@ import { Espaco } from '../../domain/entities/espaco.entity';
 export class FindEspacoByIdUseCase {
   constructor(private readonly espacoRepository: EspacoRepository) {}
 
-  async execute(id: number): Promise<Espaco> {
-    const espaco = await this.espacoRepository.findById(id);
+  async execute(id: number, contaId: number): Promise<Espaco> {
+    const espaco = await this.espacoRepository.findById(id, contaId);
     if (!espaco) {
       throw new NotFoundException(`Espaço com ID ${id} não encontrado.`);
     }

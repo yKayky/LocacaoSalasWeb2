@@ -1,52 +1,63 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { Reserva } from '../../domain/entities/reserva.entity';
-import { ReservaHistorico, ReservaRepository, TransicaoAuditoria } from '../../domain/repositories/reserva.repository';
+import { DadosEdicaoReserva, DadosNovaReserva, ReservaHistorico, ReservaRepository, TransicaoAuditoria } from '../../domain/repositories/reserva.repository';
 import { StatusReserva } from '../../domain/entities/reserva.entity';
+import { transicaoPermitida } from '../../domain/entities/reserva-transicao';
 
 @Injectable()
 export class InMemoryReservaRepository implements ReservaRepository {
-  private reservas: Reserva[] = [
-    new Reserva({
-      id: 1,
-      usuarioId: 1,
-      espacoId: 1,
-      data: '2026-09-20',
-      horarioInicio: '08:00',
-      horarioFim: '09:00',
-      status: 'CONFIRMADA',
-      createdAt: '2026-09-18T10:00:00.000Z',
-      updatedAt: '2026-09-18T10:00:00.000Z',
-    }),
-    new Reserva({
-      id: 2,
-      usuarioId: 2,
-      espacoId: 2,
-      data: '2026-10-15',
-      horarioInicio: '14:00',
-      horarioFim: '16:00',
-      status: 'PENDENTE',
-      createdAt: '2026-10-10T14:30:00.000Z',
-      updatedAt: '2026-10-10T14:30:00.000Z',
-    }),
-  ];
+  private historicos: ReservaHistorico[] = [];
 
-  findAll(): Promise<Reserva[]> {
-    return Promise.resolve([...this.reservas]);
+  private ensureSlotAvailable(data: DadosNovaReserva, ignoredId?: number): void {
+    const conflito = this.reservas.some((reserva) =>
+      reserva.id !== ignoredId &&
+      reserva.status !== 'CANCELADA' && reserva.status !== 'FINALIZADA' &&
+      reserva.espacoId === data.espacoId && reserva.data === data.data &&
+      reserva.horarioInicio < data.horarioFim && reserva.horarioFim > data.horarioInicio,
+    );
+    if (conflito) throw new ConflictException('O espaço já possui uma reserva conflitante neste horário.');
   }
 
-  findById(id: number): Promise<Reserva | null> {
-    const reserva = this.reservas.find((item) => item.id === id);
+  private registrarHistorico(
+    reservaId: number,
+    estadoAnterior: StatusReserva | null,
+    novoEstado: StatusReserva,
+    autorId: number,
+    justificativa: string,
+  ): void {
+    this.historicos.push({
+      idRegistro: this.historicos.length + 1,
+      reservaId,
+      estadoAnterior,
+      novoEstado,
+      autorId,
+      autor: null,
+      justificativa,
+      timestamp: new Date(),
+    });
+  }
+  private reservas: Reserva[] = [];
+
+  findAll(contaId: number): Promise<Reserva[]> {
+    return Promise.resolve(this.reservas.filter((item) => item.contaId === contaId).map((reserva) => ({ ...reserva })));
+  }
+
+  findById(id: number, contaId: number): Promise<Reserva | null> {
+    const reserva = this.reservas.find((item) => item.id === id && item.contaId === contaId);
     return Promise.resolve(reserva ? { ...reserva } : null);
   }
 
-  findHistory(_id: number): ReservaHistorico[] {
-    return [];
+  findHistory(id: number, contaId: number): ReservaHistorico[] {
+    if (!this.reservas.some((reserva) => reserva.id === id && reserva.contaId === contaId)) return [];
+    return this.historicos.filter((registro) => registro.reservaId === id)
+      .map((registro) => ({ ...registro, timestamp: new Date(registro.timestamp) }));
   }
 
-  create(
-    data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>,
-    _autorId: number,
+  async create(
+    data: DadosNovaReserva,
+    autorId: number,
   ): Promise<Reserva> {
+    this.ensureSlotAvailable(data);
     const id = this.reservas.reduce((maior, item) => Math.max(maior, item.id), 0) + 1;
     const agora = new Date().toISOString();
     const nova = new Reserva({
@@ -57,11 +68,12 @@ export class InMemoryReservaRepository implements ReservaRepository {
       updatedAt: agora,
     });
     this.reservas.push(nova);
+    this.registrarHistorico(id, null, 'PENDENTE', autorId, 'Reserva criada.');
     return Promise.resolve({ ...nova });
   }
 
-  update(id: number, data: Partial<Reserva>, updatedAtEsperado: string): Promise<Reserva | null> {
-    const index = this.reservas.findIndex((item) => item.id === id);
+  async update(id: number, data: DadosEdicaoReserva, updatedAtEsperado: string, contaId: number): Promise<Reserva | null> {
+    const index = this.reservas.findIndex((item) => item.id === id && item.contaId === contaId);
     if (index === -1) return Promise.resolve(null);
 
     const atual = this.reservas[index];
@@ -70,6 +82,7 @@ export class InMemoryReservaRepository implements ReservaRepository {
     }
     const atualizada = new Reserva({
       id: atual.id,
+      contaId: atual.contaId,
       usuarioId: data.usuarioId ?? atual.usuarioId,
       espacoId: data.espacoId ?? atual.espacoId,
       data: data.data ?? atual.data,
@@ -78,12 +91,13 @@ export class InMemoryReservaRepository implements ReservaRepository {
       status: atual.status,
       createdAt: atual.createdAt,
       updatedAt: new Date(Math.max(Date.now(), Date.parse(atual.updatedAt) + 1)).toISOString(),
-      checkInReal: data.checkInReal ?? atual.checkInReal,
-      checkOutReal: data.checkOutReal ?? atual.checkOutReal,
-      tempoExcedenteMinutos: data.tempoExcedenteMinutos ?? atual.tempoExcedenteMinutos,
-      valorExcedente: data.valorExcedente ?? atual.valorExcedente,
+      checkInReal: atual.checkInReal,
+      checkOutReal: atual.checkOutReal,
+      tempoExcedenteMinutos: atual.tempoExcedenteMinutos,
+      valorExcedente: atual.valorExcedente,
     });
 
+    this.ensureSlotAvailable(atualizada, id);
     this.reservas[index] = atualizada;
     return Promise.resolve({ ...atualizada });
   }
@@ -94,11 +108,21 @@ export class InMemoryReservaRepository implements ReservaRepository {
     novoEstado: StatusReserva,
     auditoria: TransicaoAuditoria,
   ): Promise<Reserva | null> {
-    const atual = this.reservas.find((item) => item.id === id);
+    const atual = this.reservas.find((item) => item.id === id && item.contaId === auditoria.contaId);
     if (!atual || atual.status !== estadoEsperado) return null;
     if (atual.updatedAt !== auditoria.updatedAtEsperado) {
       throw new ConflictException('A reserva foi alterada. Atualize a página antes de executar a ação.');
     }
+    if (!transicaoPermitida(estadoEsperado, novoEstado)) {
+      throw new ConflictException('Transição de estado inválida.');
+    }
+    if (!auditoria.justificativa.trim()) throw new ConflictException('A justificativa é obrigatória.');
+    if (novoEstado === 'EM_ANDAMENTO' && this.reservas.some((reserva) =>
+      reserva.id !== id && reserva.espacoId === atual.espacoId && reserva.status === 'EM_ANDAMENTO',
+    )) {
+      throw new ConflictException('O espaço está em uso. Finalize o check-out da reserva anterior.');
+    }
+    this.registrarHistorico(id, estadoEsperado, novoEstado, auditoria.autorId, auditoria.justificativa);
     atual.status = novoEstado;
     atual.updatedAt = new Date(Math.max(Date.now(), Date.parse(atual.updatedAt) + 1)).toISOString();
     if (auditoria.checkInReal) atual.checkInReal = auditoria.checkInReal;
@@ -106,7 +130,7 @@ export class InMemoryReservaRepository implements ReservaRepository {
     return { ...atual };
   }
 
-  delete(_id: number): Promise<boolean> {
+  async delete(): Promise<boolean> {
     throw new ConflictException('Reservas não podem ser excluídas; use a ação CANCELAR para preservar o histórico.');
   }
 }

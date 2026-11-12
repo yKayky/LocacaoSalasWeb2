@@ -12,7 +12,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthSessionGuard } from '../../../auth/auth-session.guard';
-import { AdminRoleGuard } from '../../../auth/admin-role.guard';
+import { CurrentUser } from '../../../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../../../auth/authenticated-user';
 import { CreateUsuarioDto } from '../dto/create-usuario.dto';
 import { UpdateUsuarioDto } from '../dto/update-usuario.dto';
 import { CreateUsuarioUseCase } from '../../application/use-cases/create-usuario.use-case';
@@ -21,6 +22,7 @@ import { FindUsuarioByIdUseCase } from '../../application/use-cases/find-usuario
 import { UpdateUsuarioUseCase } from '../../application/use-cases/update-usuario.use-case';
 import { DeleteUsuarioUseCase } from '../../application/use-cases/delete-usuario.use-case';
 
+@UseGuards(AuthSessionGuard)
 @Controller('usuarios')
 export class UsuariosController {
   constructor(
@@ -32,34 +34,35 @@ export class UsuariosController {
   ) {}
 
   @Get()
-  async findAll() {
-    return await this.findAllUsuariosUseCase.execute();
+  async findAll(@CurrentUser() actor: AuthenticatedUser) {
+    return await this.findAllUsuariosUseCase.execute(actor.id);
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return await this.findUsuarioByIdUseCase.execute(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: AuthenticatedUser) {
+    return await this.findUsuarioByIdUseCase.execute(id, actor.id);
   }
 
   @Post()
-  @UseGuards(AuthSessionGuard, AdminRoleGuard)
+  @UseGuards(AuthSessionGuard)
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() dto: CreateUsuarioDto) {
-    return await this.createUsuarioUseCase.execute(dto);
+  async create(@Body() dto: CreateUsuarioDto, @CurrentUser() actor: AuthenticatedUser) {
+    return await this.createUsuarioUseCase.execute(dto, actor.id);
   }
 
   @Patch(':id')
-  @UseGuards(AuthSessionGuard, AdminRoleGuard)
+  @UseGuards(AuthSessionGuard)
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateUsuarioDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return await this.updateUsuarioUseCase.execute(id, dto);
+    return await this.updateUsuarioUseCase.execute(id, dto, actor.id);
   }
 
   @Delete(':id')
-  @UseGuards(AuthSessionGuard, AdminRoleGuard)
-  async delete(@Param('id', ParseIntPipe) id: number) {
-    return await this.deleteUsuarioUseCase.execute(id);
+  @UseGuards(AuthSessionGuard)
+  async delete(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: AuthenticatedUser) {
+    return await this.deleteUsuarioUseCase.execute(id, actor.id);
   }
 }

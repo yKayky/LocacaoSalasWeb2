@@ -10,8 +10,8 @@ export interface UpdateUsuarioInput {
 export class UpdateUsuarioUseCase {
   constructor(private readonly usuarioRepository: UsuarioRepository) {}
 
-  async execute(id: number, input: UpdateUsuarioInput): Promise<Usuario> {
-    const existente = await this.usuarioRepository.findById(id);
+  async execute(id: number, input: UpdateUsuarioInput, contaId: number): Promise<Usuario> {
+    const existente = await this.usuarioRepository.findById(id, contaId);
     if (!existente) {
       throw new NotFoundException(`Usuário com ID ${id} não encontrado.`);
     }
@@ -22,7 +22,7 @@ export class UpdateUsuarioUseCase {
 
     const atualizado = await this.usuarioRepository.update(id, {
       ...(input.nome !== undefined ? { nome: input.nome.trim() } : {}),
-    });
+    }, contaId);
 
     if (!atualizado) {
       throw new NotFoundException(`Usuário com ID ${id} não encontrado.`);

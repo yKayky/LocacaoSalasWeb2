@@ -92,8 +92,8 @@ export default function PaginaUsuarios() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Usuários</h1>
-          <p className="mt-1 text-sm text-slate-400">Membros e locatários cadastrados no sistema</p>
+          <h1 className="text-2xl font-bold text-white">Pessoas</h1>
+          <p className="mt-1 text-sm text-slate-400">Pessoas cadastradas na sua conta para agendamento</p>
         </div>
         <button
           onClick={() => {
@@ -105,7 +105,7 @@ export default function PaginaUsuarios() {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Adicionar Usuário
+          Adicionar Pessoa
         </button>
       </div>
 

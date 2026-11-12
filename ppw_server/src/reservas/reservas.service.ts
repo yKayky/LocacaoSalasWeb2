@@ -19,12 +19,12 @@ export class ReservasService {
     private readonly deleteUseCase: DeleteReservaUseCase,
   ) {}
 
-  async findAll(): Promise<Reserva[]> {
-    return await this.findAllUseCase.execute();
+  async findAll(contaId: number): Promise<Reserva[]> {
+    return await this.findAllUseCase.execute(contaId);
   }
 
-  async findOne(id: number): Promise<Reserva> {
-    return await this.findByIdUseCase.execute(id);
+  async findOne(id: number, contaId: number): Promise<Reserva> {
+    return await this.findByIdUseCase.execute(id, contaId);
   }
 
   async create(dto: CreateReservaDto, actor: AuthenticatedUser): Promise<Reserva> {
@@ -35,7 +35,7 @@ export class ReservasService {
     return await this.updateUseCase.execute(id, dto, actor);
   }
 
-  async delete(id: number): Promise<{ success: boolean; message: string }> {
-    return await this.deleteUseCase.execute(id);
+  async delete(id: number, contaId: number): Promise<{ success: boolean; message: string }> {
+    return await this.deleteUseCase.execute(id, contaId);
   }
 }

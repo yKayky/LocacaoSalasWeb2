@@ -20,41 +20,57 @@ enum PapelUsuario {
   ADMIN
 }
 
-model Usuario {
+model Conta {
   id        Int       @id @default(autoincrement())
   nome      String    @db.VarChar(150)
-  papel     PapelUsuario @default(CLIENTE)
+  papel     PapelUsuario @default(ADMIN)
+  pessoas   Usuario[]
+  espacos   Espaco[]
   reservas  Reserva[]
   historicosReserva HistoricoReserva[] @relation("AutorHistoricoReserva")
   credencial CredencialUsuario?
   sessoes    SessaoUsuario[]
 
+  @@map("contas")
+}
+
+model Usuario {
+  id        Int       @id @default(autoincrement())
+  contaId   Int       @map("conta_id")
+  nome      String    @db.VarChar(150)
+  conta     Conta     @relation(fields: [contaId], references: [id], onDelete: Restrict)
+  reservas  Reserva[]
+
+  @@unique([id, contaId])
+  @@index([contaId])
   @@map("usuarios")
 }
 
 model CredencialUsuario {
-  usuarioId Int      @id @map("usuario_id")
+  contaId   Int      @id @map("conta_id")
   email     String   @unique @db.VarChar(254)
   senhaHash String   @map("senha_hash") @db.VarChar(255)
-  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  conta     Conta    @relation(fields: [contaId], references: [id], onDelete: Cascade)
 
   @@map("credenciais_usuarios")
 }
 
 model SessaoUsuario {
   id        Int      @id @default(autoincrement())
-  usuarioId Int      @map("usuario_id")
+  contaId   Int      @map("conta_id")
   tokenHash String   @unique @map("token_hash") @db.Char(64)
   expiraEm  DateTime @map("expira_em")
   criadaEm  DateTime @default(now()) @map("criada_em")
-  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  conta     Conta    @relation(fields: [contaId], references: [id], onDelete: Cascade)
 
-  @@index([usuarioId, expiraEm])
+  @@index([contaId, expiraEm])
   @@map("sessoes_usuarios")
 }
 
 model Espaco {
   id           Int       @id @default(autoincrement())
+  contaId      Int       @map("conta_id")
+  conta        Conta     @relation(fields: [contaId], references: [id], onDelete: Restrict)
   nome         String    @db.VarChar(150)
   descricao    String    @default("") @db.Text
   capacidade   Int
@@ -62,11 +78,15 @@ model Espaco {
   valorPorHora Decimal   @db.Decimal(10, 2) @map("valor_por_hora")
   reservas     Reserva[]
 
+  @@unique([id, contaId])
+  @@index([contaId])
   @@map("espacos")
 }
 
 model Reserva {
   id                     Int           @id @default(autoincrement())
+  contaId                Int           @map("conta_id")
+  conta                  Conta         @relation(fields: [contaId], references: [id], onDelete: Restrict)
   usuarioId              Int           @map("usuario_id")
   espacoId               Int           @map("espaco_id")
   data                   DateTime      @db.Date
@@ -79,11 +99,12 @@ model Reserva {
   checkOutReal           DateTime?     @map("check_out_real")
   tempoExcedenteMinutos  Int?          @map("tempo_excedente_minutos")
   valorExcedente         Decimal?      @db.Decimal(10, 2) @map("valor_excedente")
-  usuario                Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
-  espaco                 Espaco        @relation(fields: [espacoId], references: [id], onDelete: Restrict)
+  usuario                Usuario       @relation(fields: [usuarioId, contaId], references: [id, contaId], onDelete: Restrict)
+  espaco                 Espaco        @relation(fields: [espacoId, contaId], references: [id, contaId], onDelete: Restrict)
   historicos             HistoricoReserva[]
 
   @@index([usuarioId])
+  @@index([contaId])
   @@index([espacoId, data])
   @@map("reservas")
 }
@@ -97,7 +118,7 @@ model HistoricoReserva {
   justificativa    String        @db.Text
   timestamp        DateTime      @default(now())
   reserva          Reserva       @relation(fields: [reservaId], references: [id], onDelete: Restrict)
-  autor            Usuario?      @relation("AutorHistoricoReserva", fields: [autorId], references: [id], onDelete: SetNull)
+  autor            Conta?        @relation("AutorHistoricoReserva", fields: [autorId], references: [id], onDelete: Restrict)
 
   @@index([reservaId, timestamp])
   @@map("historico_reservas")

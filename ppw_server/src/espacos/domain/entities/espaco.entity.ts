@@ -1,5 +1,6 @@
 export class Espaco {
   id: number;
+  contaId: number;
   nome: string;
   descricao: string;
   capacidade: number;
@@ -8,6 +9,7 @@ export class Espaco {
 
   constructor(props: {
     id: number;
+    contaId: number;
     nome: string;
     descricao: string;
     capacidade: number;
@@ -15,6 +17,7 @@ export class Espaco {
     valorPorHora: number;
   }) {
     this.id = props.id;
+    this.contaId = props.contaId;
     this.nome = props.nome;
     this.descricao = props.descricao;
     this.capacidade = props.capacidade;

@@ -86,7 +86,7 @@ export default function PaginaReservas() {
     setSalvando(true);
     try {
       await editarReserva(reservaEditando.id, {
-        usuarioId: authUser?.papel === 'CLIENTE' ? authUser.id : Number(editUsuarioId),
+        usuarioId: Number(editUsuarioId),
         espacoId: Number(editEspacoId),
         data: editData,
         horarioInicio: editHorarioInicio,
@@ -101,7 +101,13 @@ export default function PaginaReservas() {
   }
 
   async function mudarStatus(reserva: Reserva, status: Reserva['status']) {
-    const justificativa = window.prompt('Informe a justificativa para esta mudança:');
+    const justificativasAutomaticas: Partial<Record<Reserva['status'], string>> = {
+      CONFIRMADA: 'Reserva confirmada.',
+      EM_ANDAMENTO: 'Check-in realizado.',
+      FINALIZADA: 'Check-out realizado.',
+    };
+    const justificativa = justificativasAutomaticas[status]
+      ?? window.prompt('Informe a justificativa para esta mudança:');
     if (justificativa === null) return;
     try {
       await alterarStatus(reserva.id, status, justificativa);
@@ -163,9 +169,7 @@ export default function PaginaReservas() {
               </button>
             </div>
 
-            {authUser?.papel === 'CLIENTE' ? (
-              <p className="text-sm text-slate-300">Reserva para: <strong>{authUser.nome}</strong></p>
-            ) : <label className="block">
+            <label className="block">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Usuário *</span>
               <select
                 required
@@ -179,7 +183,7 @@ export default function PaginaReservas() {
                   </option>
                 ))}
               </select>
-            </label>}
+            </label>
 
             <label className="block">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Espaço / Sala *</span>
@@ -306,7 +310,7 @@ export default function PaginaReservas() {
             const espaco = espacos.find((e) => e.id === reserva.espacoId);
             const usuario = usuarios.find((u) => u.id === reserva.usuarioId);
             const agora = new Date();
-            const fimReserva = new Date(`${reserva.data}T${reserva.horarioFim}:00`);
+            const fimReserva = new Date(`${reserva.data}T${reserva.horarioFim}:00-03:00`);
             const atrasada = reserva.status === 'EM_ANDAMENTO' && agora > fimReserva;
 
             return (
@@ -370,8 +374,7 @@ export default function PaginaReservas() {
                     )}
 
                     {/* Botão Alterar */}
-                    {reserva.status === 'PENDENTE' && (isManager ||
-                      (authUser?.papel === 'CLIENTE' && authUser.id === reserva.usuarioId)) && (
+                    {reserva.status === 'PENDENTE' && (
                     <button
                       type="button"
                       onClick={() => iniciarEdicao(reserva)}

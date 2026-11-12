@@ -5,8 +5,8 @@ import { ReservaRepository } from '../../domain/repositories/reserva.repository'
 export class DeleteReservaUseCase {
   constructor(private readonly reservaRepository: ReservaRepository) {}
 
-  async execute(id: number): Promise<{ success: boolean; message: string }> {
-    const existente = await this.reservaRepository.findById(id);
+  async execute(id: number, contaId: number): Promise<{ success: boolean; message: string }> {
+    const existente = await this.reservaRepository.findById(id, contaId);
     if (!existente) {
       throw new NotFoundException('Reserva não encontrada.');
     }

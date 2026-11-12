@@ -24,7 +24,7 @@ export default function NovaReserva() {
     setSalvando(true);
     try {
       const reserva = await criarReserva({
-        usuarioId: authUser?.papel === 'CLIENTE' ? authUser.id : Number(usuarioId),
+        usuarioId: Number(usuarioId),
         espacoId: Number(espacoId),
         data,
         horarioInicio,
@@ -68,6 +68,13 @@ export default function NovaReserva() {
         <p className="mt-1 text-sm text-slate-400">Preencha os dados para solicitar um espaço</p>
       </div>
 
+      {(usuarios.length === 0 || espacos.length === 0) && (
+        <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-sm text-slate-300">
+          Cadastre as <Link href="/usuarios" className="text-indigo-300 underline">pessoas</Link> e
+          os <Link href="/espacos" className="text-indigo-300 underline">espaços</Link> da sua conta antes de agendar.
+        </div>
+      )}
+
       <form onSubmit={enviar} className="rounded-2xl bg-slate-800/50 border border-slate-700/50 p-6 space-y-5">
         {erro && (
           <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-4 py-3 text-rose-400 text-sm">
@@ -75,20 +82,18 @@ export default function NovaReserva() {
           </div>
         )}
 
-        {authUser.papel === 'CLIENTE' ? (
-          <p className="text-sm text-slate-300">Reserva para: <strong>{authUser.nome}</strong></p>
-        ) : <label className="block">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Usuário</span>
+        <label className="block">
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pessoa</span>
           <select
             required
             value={usuarioId}
             onChange={(e) => setUsuarioId(e.target.value)}
             className="mt-1.5 block w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2.5 text-sm text-slate-200 focus:border-indigo-500 outline-none"
           >
-            <option value="">Selecione um usuário</option>
+            <option value="">Selecione uma pessoa</option>
             {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
           </select>
-        </label>}
+        </label>
 
         <label className="block">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Espaço</span>

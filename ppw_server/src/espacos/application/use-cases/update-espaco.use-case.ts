@@ -14,8 +14,8 @@ export interface UpdateEspacoInput {
 export class UpdateEspacoUseCase {
   constructor(private readonly espacoRepository: EspacoRepository) {}
 
-  async execute(id: number, input: UpdateEspacoInput): Promise<Espaco> {
-    const existente = await this.espacoRepository.findById(id);
+  async execute(id: number, input: UpdateEspacoInput, contaId: number): Promise<Espaco> {
+    const existente = await this.espacoRepository.findById(id, contaId);
     if (!existente) {
       throw new NotFoundException(`Espaço com ID ${id} não encontrado.`);
     }
@@ -36,7 +36,7 @@ export class UpdateEspacoUseCase {
       ...(input.capacidade !== undefined ? { capacidade: Number(input.capacidade) } : {}),
       ...(input.localizacao !== undefined ? { localizacao: input.localizacao.trim() } : {}),
       ...(input.valorPorHora !== undefined ? { valorPorHora: Number(input.valorPorHora) } : {}),
-    });
+    }, contaId);
 
     if (!atualizado) {
       throw new NotFoundException(`Espaço com ID ${id} não encontrado.`);

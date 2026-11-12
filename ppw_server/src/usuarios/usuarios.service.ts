@@ -16,23 +16,23 @@ export class UsuariosService {
     private readonly deleteUseCase: DeleteUsuarioUseCase,
   ) {}
 
-  async findAll(): Promise<Usuario[]> {
-    return await this.findAllUseCase.execute();
+  async findAll(contaId: number): Promise<Usuario[]> {
+    return await this.findAllUseCase.execute(contaId);
   }
 
-  async findOne(id: number): Promise<Usuario> {
-    return await this.findByIdUseCase.execute(id);
+  async findOne(id: number, contaId: number): Promise<Usuario> {
+    return await this.findByIdUseCase.execute(id, contaId);
   }
 
-  async create(dto: { nome: string }): Promise<Usuario> {
-    return await this.createUseCase.execute(dto);
+  async create(dto: { nome: string }, contaId: number): Promise<Usuario> {
+    return await this.createUseCase.execute(dto, contaId);
   }
 
-  async update(id: number, dto: { nome?: string }): Promise<Usuario> {
-    return await this.updateUseCase.execute(id, dto);
+  async update(id: number, dto: { nome?: string }, contaId: number): Promise<Usuario> {
+    return await this.updateUseCase.execute(id, dto, contaId);
   }
 
-  async delete(id: number): Promise<{ success: boolean; message: string }> {
-    return await this.deleteUseCase.execute(id);
+  async delete(id: number, contaId: number): Promise<{ success: boolean; message: string }> {
+    return await this.deleteUseCase.execute(id, contaId);
   }
 }

@@ -1,8 +1,9 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, Reserva as PrismaReserva } from '@prisma/client';
 import { Reserva, StatusReserva } from '../../domain/entities/reserva.entity';
-import { ReservaHistorico, ReservaRepository, TransicaoAuditoria } from '../../domain/repositories/reserva.repository';
+import { DadosEdicaoReserva, DadosNovaReserva, ReservaHistorico, ReservaRepository, TransicaoAuditoria } from '../../domain/repositories/reserva.repository';
+import { transicaoPermitida } from '../../domain/entities/reserva-transicao';
 
 @Injectable()
 export class ReservaPrismaRepository implements ReservaRepository {
@@ -37,9 +38,10 @@ export class ReservaPrismaRepository implements ReservaRepository {
     }
   }
 
-  private toEntity(record: any): Reserva {
+  private toEntity(record: PrismaReserva): Reserva {
     return new Reserva({
       id: record.id,
+      contaId: record.contaId,
       usuarioId: record.usuarioId,
       espacoId: record.espacoId,
       data: record.data.toISOString().slice(0, 10),
@@ -55,26 +57,26 @@ export class ReservaPrismaRepository implements ReservaRepository {
     });
   }
 
-  async findAll(): Promise<Reserva[]> {
-    const reservas = await this.prisma.reserva.findMany({ orderBy: { data: 'asc' } });
+  async findAll(contaId: number): Promise<Reserva[]> {
+    const reservas = await this.prisma.reserva.findMany({ where: { contaId }, orderBy: { data: 'asc' } });
     return reservas.map((reserva) => this.toEntity(reserva));
   }
 
-  async findById(id: number): Promise<Reserva | null> {
-    const reserva = await this.prisma.reserva.findUnique({ where: { id } });
+  async findById(id: number, contaId: number): Promise<Reserva | null> {
+    const reserva = await this.prisma.reserva.findFirst({ where: { id, contaId } });
     return reserva ? this.toEntity(reserva) : null;
   }
 
-  async findHistory(id: number): Promise<ReservaHistorico[]> {
+  async findHistory(id: number, contaId: number): Promise<ReservaHistorico[]> {
     return this.prisma.historicoReserva.findMany({
-      where: { reservaId: id },
+      where: { reservaId: id, reserva: { contaId } },
       include: { autor: { select: { id: true, nome: true } } },
-      orderBy: { timestamp: 'asc' },
+      orderBy: [{ timestamp: 'asc' }, { idRegistro: 'asc' }],
     });
   }
 
   async create(
-    data: Omit<Reserva, 'id' | 'createdAt' | 'updatedAt' | 'status'>,
+    data: DadosNovaReserva,
     autorId: number,
   ): Promise<Reserva> {
     const reserva = await this.prisma.$transaction(async (tx) => {
@@ -87,6 +89,7 @@ export class ReservaPrismaRepository implements ReservaRepository {
       });
       const criada = await tx.reserva.create({
         data: {
+          contaId: data.contaId,
           usuarioId: data.usuarioId,
           espacoId: data.espacoId,
           data: new Date(`${data.data}T00:00:00.000Z`),
@@ -108,8 +111,8 @@ export class ReservaPrismaRepository implements ReservaRepository {
     return this.toEntity(reserva);
   }
 
-  async update(id: number, data: Partial<Reserva>, updatedAtEsperado: string): Promise<Reserva | null> {
-    const updateData: Record<string, unknown> = {};
+  async update(id: number, data: DadosEdicaoReserva, updatedAtEsperado: string, contaId: number): Promise<Reserva | null> {
+    const updateData: Prisma.ReservaUncheckedUpdateInput = {};
     if (data.usuarioId !== undefined) updateData.usuarioId = data.usuarioId;
     if (data.espacoId !== undefined) updateData.espacoId = data.espacoId;
     if (data.data !== undefined) updateData.data = new Date(`${data.data}T00:00:00.000Z`);
@@ -119,7 +122,7 @@ export class ReservaPrismaRepository implements ReservaRepository {
     const reserva = await this.prisma.$transaction(async (tx) => {
       // Serialize edits and transitions before reading the current reservation.
       await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(${id}::bigint)`;
-      const atual = await tx.reserva.findUnique({ where: { id } });
+      const atual = await tx.reserva.findFirst({ where: { id, contaId } });
       if (!atual) return null;
       if (atual.status !== 'PENDENTE' || atual.updatedAt.toISOString() !== updatedAtEsperado) {
         throw new ConflictException('A reserva foi alterada. Atualize a página antes de editar.');
@@ -147,7 +150,7 @@ export class ReservaPrismaRepository implements ReservaRepository {
         id,
       );
 
-      return tx.reserva.update({ where: { id }, data: updateData as any });
+      return tx.reserva.update({ where: { id }, data: updateData });
     });
     return reserva ? this.toEntity(reserva) : null;
   }
@@ -158,15 +161,34 @@ export class ReservaPrismaRepository implements ReservaRepository {
     novoEstado: StatusReserva,
     auditoria: TransicaoAuditoria,
   ): Promise<Reserva | null> {
+    const contaId = auditoria.contaId;
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(${id}::bigint)`;
-      const atual = await tx.reserva.findUnique({ where: { id } });
+      const atual = await tx.reserva.findFirst({ where: { id, contaId } });
       if (!atual || atual.status !== estadoEsperado) return null;
       if (atual.updatedAt.toISOString() !== auditoria.updatedAtEsperado) {
         throw new ConflictException('A reserva foi alterada. Atualize a página antes de executar a ação.');
       }
+      if (!transicaoPermitida(estadoEsperado, novoEstado)) {
+        throw new ConflictException('Transição de estado inválida.');
+      }
+      if (!auditoria.justificativa.trim()) throw new ConflictException('A justificativa é obrigatória.');
 
-      const dadosReserva: Record<string, unknown> = {
+      if (novoEstado === 'EM_ANDAMENTO' || estadoEsperado === 'EM_ANDAMENTO') {
+        // Negative bigint keys serialize physical occupancy across all dates.
+        const chaveOcupacao = -atual.espacoId;
+        await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(${chaveOcupacao}::bigint)`;
+      }
+      if (novoEstado === 'EM_ANDAMENTO') {
+        const ocupada = await tx.reserva.findFirst({
+          where: { espacoId: atual.espacoId, status: 'EM_ANDAMENTO', id: { not: id } },
+        });
+        if (ocupada) {
+          throw new ConflictException('O espaço está em uso. Finalize o check-out da reserva anterior.');
+        }
+      }
+
+      const dadosReserva: Prisma.ReservaUpdateManyMutationInput = {
         status: novoEstado,
         updatedAt: new Date(Math.max(Date.now(), atual.updatedAt.getTime() + 1)),
       };
@@ -174,8 +196,8 @@ export class ReservaPrismaRepository implements ReservaRepository {
       if (auditoria.checkOutReal) dadosReserva.checkOutReal = new Date(auditoria.checkOutReal);
 
       const resultado = await tx.reserva.updateMany({
-        where: { id, status: estadoEsperado },
-        data: dadosReserva as any,
+        where: { id, contaId, status: estadoEsperado },
+        data: dadosReserva,
       });
       if (resultado.count === 0) return null;
 
@@ -189,12 +211,12 @@ export class ReservaPrismaRepository implements ReservaRepository {
         },
       });
 
-      const atualizada = await tx.reserva.findUnique({ where: { id } });
+      const atualizada = await tx.reserva.findFirst({ where: { id, contaId: auditoria.contaId } });
       return atualizada ? this.toEntity(atualizada) : null;
     });
   }
 
-  async delete(_id: number): Promise<boolean> {
+  async delete(): Promise<boolean> {
     throw new ConflictException('Reservas não podem ser excluídas; use a ação CANCELAR para preservar o histórico.');
   }
 }

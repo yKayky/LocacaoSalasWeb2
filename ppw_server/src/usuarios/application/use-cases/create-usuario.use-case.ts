@@ -10,12 +10,13 @@ export interface CreateUsuarioInput {
 export class CreateUsuarioUseCase {
   constructor(private readonly usuarioRepository: UsuarioRepository) {}
 
-  async execute(input: CreateUsuarioInput): Promise<Usuario> {
+  async execute(input: CreateUsuarioInput, contaId: number): Promise<Usuario> {
     if (!input.nome || input.nome.trim() === '') {
       throw new BadRequestException('O nome do usuário é obrigatório.');
     }
 
     return await this.usuarioRepository.create({
+      contaId,
       nome: input.nome.trim(),
     });
   }
