@@ -1,3 +1,4 @@
+/** @deprecated Compatibility only; not used by the active application. */
 import { Reserva } from '@/types/reserva';
 const CHAVE_CONSULTAS = 'agenda-coworking-reservas';
 export function carregarReservas(): Reserva[] | null {

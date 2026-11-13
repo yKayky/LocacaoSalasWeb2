@@ -1,3 +1,4 @@
+/** @deprecated Compatibility only; not used by the active application. */
 import { Injectable } from '@nestjs/common';
 import { Reserva } from './domain/entities/reserva.entity';
 import { CreateReservaDto } from './presentation/dto/create-reserva.dto';

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ReservaStatusBadge } from '@/components/reservas/reserva-status-badge';
 import { useReservas } from '@/components/reservas/reserva-provider';
+import { ApiError } from '@/lib/api';
 import { Reserva } from '@/types/reserva';
 
 export default function PaginaReservas() {
@@ -91,9 +92,10 @@ export default function PaginaReservas() {
         data: editData,
         horarioInicio: editHorarioInicio,
         horarioFim: editHorarioFim,
-      });
+      }, reservaEditando.updatedAt);
       setReservaEditando(null);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) setReservaEditando(null);
       setMensagemErro(err instanceof Error ? err.message : 'Erro ao atualizar reserva');
     } finally {
       setSalvando(false);
@@ -110,7 +112,7 @@ export default function PaginaReservas() {
       ?? window.prompt('Informe a justificativa para esta mudança:');
     if (justificativa === null) return;
     try {
-      await alterarStatus(reserva.id, status, justificativa);
+      await alterarStatus(reserva.id, status, justificativa, reserva.updatedAt);
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Não foi possível atualizar a reserva.');
     }

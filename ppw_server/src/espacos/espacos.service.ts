@@ -1,3 +1,4 @@
+/** @deprecated Compatibility only; not used by the active application. */
 import { Injectable } from '@nestjs/common';
 import { Espaco } from './domain/entities/espaco.entity';
 import { FindAllEspacosUseCase } from './application/use-cases/find-all-espacos.use-case';

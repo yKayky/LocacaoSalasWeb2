@@ -1,3 +1,4 @@
+/** @deprecated Compatibility only; not used by the active application. */
 import { Injectable } from '@nestjs/common';
 import { Usuario } from './domain/entities/usuario.entity';
 import { FindAllUsuariosUseCase } from './application/use-cases/find-all-usuarios.use-case';

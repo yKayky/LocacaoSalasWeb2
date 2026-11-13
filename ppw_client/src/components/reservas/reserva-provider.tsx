@@ -2,6 +2,7 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import {
   buscarReservas,
+  buscarReservaPorId,
   buscarEspacos,
   buscarUsuarios,
   criarReserva as criarNaApi,
@@ -27,8 +28,8 @@ type Contexto = {
   error: string;
   authUser: AuthUser | null;
   criarReserva: (dados: DadosReserva) => Promise<Reserva>;
-  editarReserva: (id: number, dados: Partial<Reserva>) => Promise<Reserva>;
-  alterarStatus: (id: number, status: StatusReserva, justificativa: string) => Promise<Reserva>;
+  editarReserva: (id: number, dados: Partial<DadosReserva>, updatedAtEsperado: string) => Promise<Reserva>;
+  alterarStatus: (id: number, status: StatusReserva, justificativa: string, updatedAtEsperado: string) => Promise<Reserva>;
   adicionarUsuario: (nome: string) => Promise<Usuario>;
   editarUsuario: (id: number, dados: { nome: string }) => Promise<Usuario>;
   excluirUsuario: (id: number) => Promise<void>;
@@ -91,13 +92,26 @@ export function ReservaProvider({ children }: { children: ReactNode }) {
     return reserva;
   }
 
-  async function editarReserva(id: number, dados: Partial<Reserva>) {
-    const reserva = await atualizarNaApi(id, dados);
+  async function recuperarConflito(id: number, erro: unknown): Promise<never> {
+    if (erro instanceof ApiError && erro.status === 409) {
+      try {
+        const atual = await buscarReservaPorId(id);
+        setReservas((prev) => prev.map((item) => item.id === id ? atual : item));
+      } catch {
+        throw new ApiError('Conflito ao salvar. Recarregue a pagina antes de tentar novamente.', 409);
+      }
+      throw new ApiError('A operacao nao foi salva. Os dados foram atualizados; revise e tente novamente. ' + erro.message, 409);
+    }
+    throw erro;
+  }
+
+  async function editarReserva(id: number, dados: Partial<DadosReserva>, updatedAtEsperado: string) {
+    const reserva = await atualizarNaApi(id, dados, updatedAtEsperado).catch((erro: unknown) => recuperarConflito(id, erro));
     setReservas((prev) => prev.map((item) => (item.id === id ? reserva : item)));
     return reserva;
   }
 
-  async function alterarStatus(id: number, status: StatusReserva, justificativa: string) {
+  async function alterarStatus(id: number, status: StatusReserva, justificativa: string, updatedAtEsperado: string) {
     const acaoPorStatus: Partial<Record<StatusReserva, 'CONFIRMAR' | 'INICIAR' | 'FINALIZAR' | 'CANCELAR'>> = {
       CONFIRMADA: 'CONFIRMAR',
       EM_ANDAMENTO: 'INICIAR',
@@ -106,7 +120,7 @@ export function ReservaProvider({ children }: { children: ReactNode }) {
     };
     const acao = acaoPorStatus[status];
     if (!acao) throw new Error('Ação de estado inválida.');
-    const reserva = await transicionarNaApi(id, acao, justificativa);
+    const reserva = await transicionarNaApi(id, acao, justificativa, updatedAtEsperado).catch((erro: unknown) => recuperarConflito(id, erro));
     setReservas((prev) => prev.map((item) => (item.id === id ? reserva : item)));
     return reserva;
   }

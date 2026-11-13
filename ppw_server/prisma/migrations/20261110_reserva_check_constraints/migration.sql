@@ -1,3 +1,4 @@
+-- LEGACY REFERENCE ONLY. Not a complete migration history. Use npm run db:setup.
 ALTER TABLE "bi3041468"."reservas"
   ADD CONSTRAINT "reservas_usuario_id_positivo"
     CHECK ("usuario_id" > 0),

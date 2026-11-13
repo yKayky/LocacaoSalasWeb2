@@ -97,7 +97,9 @@ model Reserva {
   updatedAt              DateTime      @updatedAt @map("updated_at")
   checkInReal            DateTime?     @map("check_in_real")
   checkOutReal           DateTime?     @map("check_out_real")
+  /// Deprecated: retained only to preserve existing data. No excess billing.
   tempoExcedenteMinutos  Int?          @map("tempo_excedente_minutos")
+  /// Deprecated: retained only to preserve existing data. No excess billing.
   valorExcedente         Decimal?      @db.Decimal(10, 2) @map("valor_excedente")
   usuario                Usuario       @relation(fields: [usuarioId, contaId], references: [id, contaId], onDelete: Restrict)
   espaco                 Espaco        @relation(fields: [espacoId, contaId], references: [id, contaId], onDelete: Restrict)
@@ -109,7 +111,16 @@ model Reserva {
   @@map("reservas")
 }
 
+enum TipoEventoReserva {
+  CRIACAO
+  EDICAO
+  TRANSICAO
+}
+
 model HistoricoReserva {
+  tipoEvento TipoEventoReserva? @map("tipo_evento")
+  dadosAnteriores Json? @map("dados_anteriores")
+  dadosNovos Json? @map("dados_novos")
   idRegistro       Int           @id @default(autoincrement()) @map("id_registro")
   reservaId        Int           @map("reserva_id")
   estadoAnterior   StatusReserva? @map("estado_anterior")

@@ -57,6 +57,7 @@ export class AuthService {
         const user = await tx.conta.create({
           data: {
             nome: input.nome.trim(),
+            papel: 'ADMIN',
             credencial: { create: { email, senhaHash } },
           },
           select: { id: true, nome: true, papel: true },

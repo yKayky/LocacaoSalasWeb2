@@ -1,3 +1,5 @@
 # Environment files can contain credentials and other secrets.
 .env*
 
+
+!.env.example

@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { ReservaStatusBadge } from '@/components/reservas/reserva-status-badge';
 import { useReservas } from '@/components/reservas/reserva-provider';
 import { StatusReserva } from '@/types/reserva';
-import { buscarHistoricoReserva } from '@/lib/api';
+import { ApiError, buscarHistoricoReserva } from '@/lib/api';
 
 const proximaAcao: Partial<Record<StatusReserva, { texto: string; status: StatusReserva; cor: string }>> = {
   PENDENTE: { texto: 'Confirmar reserva', status: 'CONFIRMADA', cor: 'bg-indigo-600 hover:bg-indigo-500 text-white' },
@@ -40,7 +40,8 @@ export default function DetalheReserva() {
   const [historico, setHistorico] = useState<Awaited<ReturnType<typeof buscarHistoricoReserva>>>([]);
   const [erroHistorico, setErroHistorico] = useState('');
   const [historicoCarregado, setHistoricoCarregado] = useState<string | null>(null);
-  const chaveHistorico = authUser ? `${authUser.id}/${id}` : null;
+  const reserva = reservas.find((item) => item.id === Number(id));
+  const chaveHistorico = authUser ? `${authUser.id}/${id}/${reserva?.updatedAt}` : null;
   const carregandoHistorico = chaveHistorico !== historicoCarregado;
 
   useEffect(() => {
@@ -59,8 +60,6 @@ export default function DetalheReserva() {
       .finally(() => { if (ativo) setHistoricoCarregado(chaveHistorico); });
     return () => { ativo = false; };
   }, [id, authUser, chaveHistorico]);
-
-  const reserva = reservas.find((item) => item.id === Number(id));
 
   if (loading) {
     return (
@@ -107,7 +106,7 @@ export default function DetalheReserva() {
     setErro('');
     setSalvando(true);
     try {
-      await alterarStatus(reserva!.id, status, justificativa);
+      await alterarStatus(reserva!.id, status, justificativa, reserva!.updatedAt);
       setErroHistorico('');
       try {
         setHistorico(await buscarHistoricoReserva(reserva!.id));
@@ -115,6 +114,7 @@ export default function DetalheReserva() {
         setErroHistorico('A ação foi concluída. Atualize a página para recarregar o histórico.');
       }
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409) setEditando(false);
       setErro(e instanceof Error ? e.message : 'Não foi possível atualizar a reserva.');
     } finally {
       setSalvando(false);
@@ -133,7 +133,7 @@ export default function DetalheReserva() {
         data: String(dados.get('data')),
         horarioInicio: String(dados.get('horarioInicio')),
         horarioFim: String(dados.get('horarioFim')),
-      });
+      }, reserva!.updatedAt);
       setEditando(false);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível editar a reserva.');
@@ -232,7 +232,7 @@ export default function DetalheReserva() {
 
         {/* Formulário de edição (Alterar) */}
         {editando && (
-          <form onSubmit={editar} className="grid gap-4 sm:grid-cols-2 border-t border-slate-700 pt-5">
+          <form key={reserva.updatedAt} onSubmit={editar} className="grid gap-4 sm:grid-cols-2 border-t border-slate-700 pt-5">
             <label className="block">
               <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Usuário *</span>
               <select
@@ -309,7 +309,7 @@ export default function DetalheReserva() {
       </div>
 
       <section className="rounded-2xl bg-slate-800/50 border border-slate-700/50 p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-white">Histórico de estados</h2>
+        <h2 className="text-lg font-semibold text-white">Histórico da reserva</h2>
         {carregandoHistorico ? (
           <p className="text-sm text-slate-400">Carregando histórico...</p>
         ) : erroHistorico ? (
@@ -321,9 +321,16 @@ export default function DetalheReserva() {
             {historico.map((item) => (
               <li key={item.idRegistro} className="border-l-2 border-indigo-500/50 pl-4">
                 <p className="text-sm font-medium text-slate-200">
-                  {item.estadoAnterior ?? 'NOVA'} → {item.novoEstado}
+                  {item.tipoEvento === 'EDICAO' ? 'Agendamento alterado' : `${item.estadoAnterior ?? 'NOVA'} → ${item.novoEstado}`}
                 </p>
                 <p className="text-sm text-slate-400">{item.justificativa}</p>
+                {item.tipoEvento === 'EDICAO' && item.dadosNovos && (
+                  <ul className="text-xs text-slate-400">
+                    {Object.entries(item.dadosNovos).filter(([campo, valor]) => item.dadosAnteriores?.[campo] !== valor).map(([campo, valor]) => (
+                      <li key={campo}>{({ usuarioId: 'Pessoa (ID)', espacoId: 'Sala (ID)', data: 'Data', horarioInicio: 'Inicio', horarioFim: 'Fim' } as Record<string, string>)[campo] ?? campo}: {String(item.dadosAnteriores?.[campo] ?? '\u2014')} {String.fromCharCode(8594)} {String(valor)}</li>
+                    ))}
+                  </ul>
+                )}
                 <p className="text-xs text-slate-500">
                   {item.autor?.nome ?? (item.autorId ? `Usuário #${item.autorId}` : 'Autor não identificado')} · {new Date(item.timestamp).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                 </p>

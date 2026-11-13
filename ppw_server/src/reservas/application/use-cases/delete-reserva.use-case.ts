@@ -1,3 +1,4 @@
+/** @deprecated Compatibility only; not used by the active application. */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ReservaRepository } from '../../domain/repositories/reserva.repository';
 

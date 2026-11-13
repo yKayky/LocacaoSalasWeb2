@@ -1,6 +1,9 @@
-import { IsDateString, IsInt, IsPositive, Matches, ValidateIf } from 'class-validator';
+import { IsISO8601, IsDateString, IsInt, IsPositive, Matches, ValidateIf } from 'class-validator';
 
 export class UpdateReservaDto {
+  @IsISO8601({ strict: true })
+  updatedAtEsperado!: string;
+
   @ValidateIf((_object, value) => value !== undefined)
   @IsInt({ message: 'O ID do usuário deve ser um número inteiro' })
   @IsPositive()

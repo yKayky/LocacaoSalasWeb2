@@ -7,7 +7,6 @@ import { FindAllEspacosUseCase } from './application/use-cases/find-all-espacos.
 import { FindEspacoByIdUseCase } from './application/use-cases/find-espaco-by-id.use-case';
 import { UpdateEspacoUseCase } from './application/use-cases/update-espaco.use-case';
 import { DeleteEspacoUseCase } from './application/use-cases/delete-espaco.use-case';
-import { EspacosService } from './espacos.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -23,7 +22,6 @@ import { AuthModule } from '../auth/auth.module';
     FindEspacoByIdUseCase,
     UpdateEspacoUseCase,
     DeleteEspacoUseCase,
-    EspacosService,
   ],
   exports: [
     EspacoRepository,
@@ -32,7 +30,6 @@ import { AuthModule } from '../auth/auth.module';
     FindEspacoByIdUseCase,
     UpdateEspacoUseCase,
     DeleteEspacoUseCase,
-    EspacosService,
   ],
 })
 export class EspacosModule {}

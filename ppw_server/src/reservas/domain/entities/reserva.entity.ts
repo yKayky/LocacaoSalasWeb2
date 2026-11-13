@@ -18,8 +18,6 @@ export class Reserva {
   updatedAt: string;
   checkInReal?: string; // ISO string
   checkOutReal?: string; // ISO string
-  tempoExcedenteMinutos?: number;
-  valorExcedente?: number;
 
   constructor(props: {
     id: number;
@@ -34,8 +32,6 @@ export class Reserva {
     updatedAt: string;
     checkInReal?: string;
     checkOutReal?: string;
-    tempoExcedenteMinutos?: number;
-    valorExcedente?: number;
   }) {
     this.id = props.id;
     this.contaId = props.contaId;
@@ -49,7 +45,5 @@ export class Reserva {
     this.updatedAt = props.updatedAt;
     this.checkInReal = props.checkInReal;
     this.checkOutReal = props.checkOutReal;
-    this.tempoExcedenteMinutos = props.tempoExcedenteMinutos;
-    this.valorExcedente = props.valorExcedente;
   }
 }

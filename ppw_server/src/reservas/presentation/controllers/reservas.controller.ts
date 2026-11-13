@@ -88,6 +88,7 @@ export class ReservasController {
       dto.acao,
       dto.justificativa,
       actor,
+      dto.updatedAtEsperado,
     );
   }
 

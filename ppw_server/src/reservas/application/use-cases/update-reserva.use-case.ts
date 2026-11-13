@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { ReservaRepository } from '../../domain/repositories/reserva.repository';
 import { UsuarioRepository } from '../../../usuarios/domain/repositories/usuario.repository';
@@ -11,6 +12,7 @@ import { AuthenticatedUser } from '../../../auth/authenticated-user';
 import { ReservaPermissaoPolicy } from '../policies/reserva-permissao.policy';
 
 export interface UpdateReservaInput {
+  updatedAtEsperado: string;
   usuarioId?: number;
   espacoId?: number;
   data?: string;
@@ -33,6 +35,10 @@ export class UpdateReservaUseCase {
     }
 
     ReservaPermissaoPolicy.validarEdicao(actor, reserva.contaId);
+
+    if (reserva.updatedAt !== input.updatedAtEsperado) {
+      throw new ConflictException('A reserva foi alterada. Atualize a pagina antes de editar.');
+    }
 
     if (reserva.status !== 'PENDENTE') {
       throw new BadRequestException('Só é possível editar uma reserva pendente.');
@@ -64,7 +70,7 @@ export class UpdateReservaUseCase {
       data,
       horarioInicio,
       horarioFim,
-    }, reserva.updatedAt, actor.id);
+    }, input.updatedAtEsperado, actor.id);
 
     if (!atualizada) {
       throw new NotFoundException('Reserva não encontrada.');

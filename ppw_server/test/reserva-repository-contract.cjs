@@ -32,6 +32,26 @@ async function verificarContratoReserva(repository, dados, autorId) {
   ), conflito);
   assert.equal((await repository.findHistory(criada.id, contaId)).length, 1);
 
+  const editavel = await repository.create({ ...dados, data: '2030-01-15' }, autorId);
+  const edicoes = await Promise.allSettled([
+    repository.update(editavel.id, { horarioFim: '11:00' }, editavel.updatedAt, contaId),
+    repository.update(editavel.id, { horarioFim: '12:00' }, editavel.updatedAt, contaId),
+  ]);
+  assert.equal(edicoes.filter((r) => r.status === 'fulfilled').length, 1);
+  assert.equal(edicoes.filter((r) => r.status === 'rejected').length, 1);
+  assert.ok(conflito(edicoes.find((r) => r.status === 'rejected').reason));
+  const editada = edicoes.find((r) => r.status === 'fulfilled').value;
+  const logsEdicao = await repository.findHistory(editavel.id, contaId);
+  assert.equal(logsEdicao.length, 2);
+  assert.equal(logsEdicao[1].tipoEvento, 'EDICAO');
+  assert.equal(logsEdicao[1].dadosAnteriores.horarioFim, '10:00');
+  assert.equal(logsEdicao[1].dadosNovos.horarioFim, editada.horarioFim);
+  const semMudanca = await repository.update(editada.id, { horarioFim: editada.horarioFim }, editada.updatedAt, contaId);
+  assert.equal(semMudanca.updatedAt, editada.updatedAt);
+  assert.equal((await repository.findHistory(editavel.id, contaId)).length, 2);
+  logsEdicao[1].dadosNovos.horarioFim = '00:00';
+  assert.equal((await repository.findHistory(editavel.id, contaId))[1].dadosNovos.horarioFim, editada.horarioFim);
+
   const simultaneos = await Promise.allSettled([
     repository.create({ ...dados, data: '2030-01-11' }, autorId),
     repository.create({ ...dados, data: '2030-01-11' }, autorId),

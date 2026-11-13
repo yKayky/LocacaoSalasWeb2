@@ -1,6 +1,6 @@
 import { Reserva, DadosReserva, Espaco, Usuario } from '@/types/reserva';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 export interface AuthUser {
   id: number;
@@ -57,6 +57,9 @@ export const buscarReservas = () => requisicao<Reserva[]>('/reservas');
 export const buscarReservaPorId = (id: number) => requisicao<Reserva>(`/reservas/${id}`);
 export const buscarHistoricoReserva = (id: number) =>
   requisicao<Array<{
+    tipoEvento: 'CRIACAO' | 'EDICAO' | 'TRANSICAO';
+    dadosAnteriores: Record<string, string | number> | null;
+    dadosNovos: Record<string, string | number> | null;
     idRegistro: number;
     estadoAnterior: Reserva['status'] | null;
     novoEstado: Reserva['status'];
@@ -70,18 +73,17 @@ export const criarReserva = (dados: DadosReserva) =>
 export const atualizarReserva = (
   id: number,
   dados: Partial<DadosReserva>,
-) => requisicao<Reserva>(`/reservas/${id}`, { method: 'PATCH', body: JSON.stringify(dados) });
+  updatedAtEsperado: string,
+) => requisicao<Reserva>(`/reservas/${id}`, { method: 'PATCH', body: JSON.stringify({ ...dados, updatedAtEsperado }) });
 export const transicionarReserva = (
   id: number,
   acao: 'CONFIRMAR' | 'INICIAR' | 'FINALIZAR' | 'CANCELAR',
   justificativa: string,
+  updatedAtEsperado: string,
 ) => requisicao<Reserva>(`/reservas/${id}/acoes`, {
   method: 'POST',
-  body: JSON.stringify({ acao, justificativa }),
+  body: JSON.stringify({ acao, justificativa, updatedAtEsperado }),
 });
-export const sincronizarReservas = (reservas: Reserva[]) =>
-  requisicao<Reserva[]>('/reservas/sincronizar', { method: 'PUT', body: JSON.stringify(reservas) });
-
 // Usuários
 export const buscarUsuarios = () => requisicao<Usuario[]>('/usuarios');
 export const buscarUsuarioPorId = (id: number) => requisicao<Usuario>(`/usuarios/${id}`);

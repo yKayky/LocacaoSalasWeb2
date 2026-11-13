@@ -6,6 +6,7 @@ import { TransicionarReservaUseCase } from './application/use-cases/transicionar
 import { UpdateReservaUseCase } from './application/use-cases/update-reserva.use-case';
 import { InMemoryReservaRepository } from './infrastructure/repositories/in-memory-reserva.repository';
 import type { AuthenticatedUser } from '../auth/authenticated-user';
+import { AcaoReserva } from './domain/entities/reserva-transicao';
 import { GuardaReservaViolada } from './domain/entities/reserva-guardas';
 
 describe('Regras de reservas', () => {
@@ -18,6 +19,11 @@ describe('Regras de reservas', () => {
   const dados = {
     usuarioId: 1, espacoId: 1, data: '2026-10-01', horarioInicio: '09:00', horarioFim: '10:00',
   };
+
+  async function agir(id: number, acao: AcaoReserva, justificativa: string, actor: AuthenticatedUser) {
+    const atual = await repository.findById(id, actor.id);
+    return transicionar.execute(id, acao, justificativa, actor, atual?.updatedAt ?? new Date(0).toISOString());
+  }
 
   beforeEach(async () => {
     repository = new InMemoryReservaRepository();
@@ -32,7 +38,7 @@ describe('Regras de reservas', () => {
     editar = new UpdateReservaUseCase(repository, usuarios, espacos);
     transicionar = new TransicionarReservaUseCase(repository);
     await repository.create({ ...dados, contaId: 3, data: '2026-09-20', horarioInicio: '08:00', horarioFim: '09:00' }, 3);
-    await transicionar.execute(1, 'CONFIRMAR', 'Inicialização.', operador);
+    await agir(1, 'CONFIRMAR', 'Inicialização.', operador);
     await repository.create({ ...dados, contaId: 3, data: '2026-10-15' }, 3);
   });
 
@@ -57,7 +63,7 @@ describe('Regras de reservas', () => {
   });
 
   it('aceita uma transição válida', async () => {
-    const atualizada = await transicionar.execute(2, 'CONFIRMAR', 'Reserva aprovada.', operador);
+    const atualizada = await agir(2, 'CONFIRMAR', 'Reserva aprovada.', operador);
     expect(atualizada.status).toBe('CONFIRMADA');
     expect(repository.findHistory(2, 3).at(-1)).toMatchObject({
       estadoAnterior: 'PENDENTE', novoEstado: 'CONFIRMADA', autorId: operador.id,
@@ -65,21 +71,21 @@ describe('Regras de reservas', () => {
   });
 
   it('rejeita uma transição inválida', async () => {
-    await expect(transicionar.execute(1, 'FINALIZAR', 'Encerramento.', operador))
+    await expect(agir(1, 'FINALIZAR', 'Encerramento.', operador))
       .rejects.toBeInstanceOf(BadRequestException);
     expect(repository.findHistory(1, 3)).toHaveLength(2);
   });
 
   it('respeita o papel e impede acesso a outra conta', async () => {
-    await expect(transicionar.execute(2, 'CONFIRMAR', 'Solicitação.', cliente))
+    await expect(agir(2, 'CONFIRMAR', 'Solicitação.', cliente))
       .rejects.toBeInstanceOf(ForbiddenException);
-    await expect(transicionar.execute(2, 'CANCELAR', 'Solicitação.', { ...cliente, id: 1 }))
+    await expect(agir(2, 'CANCELAR', 'Solicitação.', { ...cliente, id: 1 }))
       .rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('libera o horário após cancelamento e preserva a auditoria', async () => {
     const reserva = await criar.execute(dados, cliente);
-    await transicionar.execute(reserva.id, 'CANCELAR', 'Mudança de planos.', cliente);
+    await agir(reserva.id, 'CANCELAR', 'Mudança de planos.', cliente);
     await expect(criar.execute(dados, cliente)).resolves.toMatchObject({ status: 'PENDENTE' });
     expect(repository.findHistory(reserva.id, 3)).toHaveLength(2);
   });
@@ -100,13 +106,13 @@ describe('Regras de reservas', () => {
 
   it('rejeita edição validada sobre uma versão anterior da reserva', async () => {
     const reserva = await criar.execute(dados, operador);
-    await transicionar.execute(reserva.id, 'CONFIRMAR', 'Confirmação.', operador);
+    await agir(reserva.id, 'CONFIRMAR', 'Confirmação.', operador);
     await expect(async () => repository.update(reserva.id, { horarioFim: '11:00' }, reserva.updatedAt, 3))
       .rejects.toBeInstanceOf(ConflictException);
   });
 
   it('não permite editar reserva confirmada', async () => {
-    await expect(editar.execute(1, { horarioFim: '11:00' }, operador))
+    await expect(editar.execute(1, { horarioFim: '11:00', updatedAtEsperado: (await repository.findById(1, 3))!.updatedAt }, operador))
       .rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -114,8 +120,8 @@ describe('Regras de reservas', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-10-01T11:59:59Z'));
     try {
       const reserva = await criar.execute(dados, operador);
-      await transicionar.execute(reserva.id, 'CONFIRMAR', 'Confirmada.', operador);
-      await expect(transicionar.execute(reserva.id, 'INICIAR', 'Chegada.', operador))
+      await agir(reserva.id, 'CONFIRMAR', 'Confirmada.', operador);
+      await expect(agir(reserva.id, 'INICIAR', 'Chegada.', operador))
         .rejects.toBeInstanceOf(BadRequestException);
     } finally {
       jest.useRealTimers();
@@ -132,8 +138,8 @@ describe('Regras de reservas', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-10-01T13:00:00Z'));
     try {
       const reserva = await criar.execute(dados, operador);
-      await transicionar.execute(reserva.id, 'CONFIRMAR', 'Confirmada.', operador);
-      await expect(transicionar.execute(reserva.id, 'INICIAR', 'Chegada.', operador))
+      await agir(reserva.id, 'CONFIRMAR', 'Confirmada.', operador);
+      await expect(agir(reserva.id, 'INICIAR', 'Chegada.', operador))
         .rejects.toBeInstanceOf(BadRequestException);
       expect((await repository.findById(reserva.id, 3))?.status).toBe('CONFIRMADA');
       expect(repository.findHistory(reserva.id, 3)).toHaveLength(2);
@@ -147,7 +153,7 @@ describe('Regras de reservas', () => {
       acao: 'CONFIRMAR',
       validar() { throw new GuardaReservaViolada('Regra adicional de aprovação.'); },
     }]);
-    await expect(comGuardaAdicional.execute(2, 'CONFIRMAR', 'Aprovação.', operador))
+    await expect(comGuardaAdicional.execute(2, 'CONFIRMAR', 'Aprovação.', operador, (await repository.findById(2, 3))!.updatedAt))
       .rejects.toThrow('Regra adicional de aprovação.');
     expect((await repository.findById(2, 3))?.status).toBe('PENDENTE');
   });

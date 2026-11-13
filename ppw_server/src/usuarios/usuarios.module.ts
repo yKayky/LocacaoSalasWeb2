@@ -7,7 +7,6 @@ import { FindAllUsuariosUseCase } from './application/use-cases/find-all-usuario
 import { FindUsuarioByIdUseCase } from './application/use-cases/find-usuario-by-id.use-case';
 import { UpdateUsuarioUseCase } from './application/use-cases/update-usuario.use-case';
 import { DeleteUsuarioUseCase } from './application/use-cases/delete-usuario.use-case';
-import { UsuariosService } from './usuarios.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -23,7 +22,6 @@ import { AuthModule } from '../auth/auth.module';
     FindUsuarioByIdUseCase,
     UpdateUsuarioUseCase,
     DeleteUsuarioUseCase,
-    UsuariosService,
   ],
   exports: [
     UsuarioRepository,
@@ -32,7 +30,6 @@ import { AuthModule } from '../auth/auth.module';
     FindUsuarioByIdUseCase,
     UpdateUsuarioUseCase,
     DeleteUsuarioUseCase,
-    UsuariosService,
   ],
 })
 export class UsuariosModule {}

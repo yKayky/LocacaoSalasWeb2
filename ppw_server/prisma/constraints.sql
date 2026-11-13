@@ -24,7 +24,7 @@ BEGIN
         regra.tabela, regra.nome, regra.expressao);
     END IF;
   END LOOP;
-END $checks$;
+END; $checks$;
 
 -- Range GiST indexes use PostgreSQL built-ins and do not require btree_gist.
 DO $overlap$
@@ -46,7 +46,7 @@ BEGIN
         )) WITH &&
       ) WHERE (status IN ('PENDENTE', 'CONFIRMADA', 'EM_ANDAMENTO'));
   END IF;
-END $overlap$;
+END; $overlap$;
 
 -- Scheduled intervals may be adjacent, but physical use is exclusive.
 CREATE UNIQUE INDEX IF NOT EXISTS reservas_um_uso_por_espaco
@@ -58,9 +58,47 @@ CREATE OR REPLACE FUNCTION bi3041468.proteger_historico_reserva()
 RETURNS trigger LANGUAGE plpgsql AS $audit$
 BEGIN
   RAISE EXCEPTION 'O historico de reservas e imutavel.' USING ERRCODE = '23514';
-END $audit$;
+END; $audit$;
 
 DROP TRIGGER IF EXISTS historico_reservas_imutavel ON bi3041468.historico_reservas;
 CREATE TRIGGER historico_reservas_imutavel
   BEFORE UPDATE OR DELETE ON bi3041468.historico_reservas
   FOR EACH ROW EXECUTE FUNCTION bi3041468.proteger_historico_reserva();
+
+-- Validate new writes while preserving legacy rows for explicit review.
+CREATE OR REPLACE FUNCTION bi3041468.validar_estado_reserva()
+RETURNS trigger LANGUAGE plpgsql AS $state$
+BEGIN
+  IF TG_OP = 'INSERT' AND NEW.status <> 'PENDENTE' THEN
+    RAISE EXCEPTION 'Reservas devem iniciar pendentes.' USING ERRCODE = '23514';
+  END IF;
+  IF TG_OP = 'UPDATE' THEN
+    IF OLD.status <> NEW.status AND NOT (
+      (OLD.status = 'PENDENTE' AND NEW.status IN ('CONFIRMADA', 'CANCELADA')) OR
+      (OLD.status = 'CONFIRMADA' AND NEW.status IN ('EM_ANDAMENTO', 'CANCELADA')) OR
+      (OLD.status = 'EM_ANDAMENTO' AND NEW.status = 'FINALIZADA')
+    ) THEN
+      RAISE EXCEPTION 'Transicao de reserva invalida.' USING ERRCODE = '23514';
+    END IF;
+    IF ROW(OLD.conta_id, OLD.usuario_id, OLD.espaco_id, OLD.data, OLD.horario_inicio, OLD.horario_fim)
+       IS DISTINCT FROM ROW(NEW.conta_id, NEW.usuario_id, NEW.espaco_id, NEW.data, NEW.horario_inicio, NEW.horario_fim)
+       AND (OLD.status <> 'PENDENTE' OR NEW.status <> 'PENDENTE' OR OLD.conta_id <> NEW.conta_id) THEN
+      RAISE EXCEPTION 'Somente agendamentos pendentes podem ser editados.' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.check_in_real IS NOT NULL AND OLD.check_in_real IS DISTINCT FROM NEW.check_in_real THEN
+      RAISE EXCEPTION 'Check-in registrado nao pode ser alterado.' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.check_out_real IS NOT NULL AND OLD.check_out_real IS DISTINCT FROM NEW.check_out_real THEN
+      RAISE EXCEPTION 'Check-out registrado nao pode ser alterado.' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+  IF (NEW.status IN ('PENDENTE', 'CONFIRMADA', 'CANCELADA') AND (NEW.check_in_real IS NOT NULL OR NEW.check_out_real IS NOT NULL))
+     OR (NEW.status = 'EM_ANDAMENTO' AND (NEW.check_in_real IS NULL OR NEW.check_out_real IS NOT NULL))
+     OR (NEW.status = 'FINALIZADA' AND (NEW.check_in_real IS NULL OR NEW.check_out_real IS NULL OR NEW.check_out_real < NEW.check_in_real)) THEN
+    RAISE EXCEPTION 'Estado e horarios reais inconsistentes.' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END; $state$;
+DROP TRIGGER IF EXISTS reservas_estado_valido ON bi3041468.reservas;
+CREATE TRIGGER reservas_estado_valido BEFORE INSERT OR UPDATE ON bi3041468.reservas
+FOR EACH ROW EXECUTE FUNCTION bi3041468.validar_estado_reserva();

@@ -8,11 +8,13 @@ export interface TransicaoAuditoria {
   autorId: number;
   contaId: number;
   justificativa: string;
-  checkInReal?: string;
-  checkOutReal?: string;
+  validarSobLock?: (reserva: Reserva, agora: Date) => void;
 }
 
 export interface ReservaHistorico {
+  tipoEvento: 'CRIACAO' | 'EDICAO' | 'TRANSICAO';
+  dadosAnteriores: unknown;
+  dadosNovos: unknown;
   idRegistro: number;
   reservaId: number;
   estadoAnterior: StatusReserva | null;

@@ -40,7 +40,7 @@ WHERE "id" = (
 
 O check-in exige que o horário de início tenha chegado e que o período reservado ainda não tenha terminado. O projeto considera as reservas no horário de Brasília, UTC−03. Outra reserva da mesma sala em andamento impede o check-in até seu checkout, inclusive quando os agendamentos são de dias diferentes. Reservas finalizadas e canceladas não têm transições de saída. Reservas em andamento devem seguir para finalização. A edição de dados é permitida em reservas pendentes, sujeita à propriedade e ao papel do usuário.
 
-As transições são recebidas em `POST /reservas/:id/acoes`, com `acao` e `justificativa`. O autor é obtido da sessão. `PATCH /reservas/:id` recebe os dados de agendamento, e campos fora do DTO provocam HTTP 400. Cancelar libera o horário e mantém a reserva e seu histórico. O fluxo não possui pagamento ou saldo para estornar.
+As transições são recebidas em `POST /reservas/:id/acoes`, com `acao`, `justificativa` e `updatedAtEsperado`. O autor é obtido da sessão. `PATCH /reservas/:id` recebe `updatedAtEsperado` e os dados de agendamento, e campos fora do DTO provocam HTTP 400. Cancelar libera o horário e mantém a reserva e seu histórico. O fluxo não possui pagamento ou saldo para estornar.
 
 ## Arquitetura e integridade
 
@@ -57,3 +57,19 @@ No PostgreSQL, a reserva e seu histórico inicial são inseridos na mesma transa
 `npm test -- --runInBand` executa as regras de negócio, o contrato em memória e as rotas HTTP com sessão controlada nos testes. `npm run test:postgres` gera um cliente Prisma com os mesmos modelos e mapeamentos para tabelas de teste com prefixo aleatório `v_`. O teste instancia o `ReservaPrismaRepository` da aplicação e executa o mesmo contrato usado em memória, sem simular suas consultas ou transações. As tabelas usam o schema `bi3041468` e os enums existentes. O cliente gerado, as tabelas e a função de teste são removidos ao terminar. Prepare o banco antes de executar e utilize uma conta com permissão para criar tabelas no schema.
 
 Os testes PostgreSQL cobrem criações e check-ins concorrentes, horários adjacentes, liberação da sala após checkout, rollback por falha de auditoria durante criação e transição, integridade referencial e imutabilidade do histórico. Os testes HTTP cobrem 401 sem sessão, 403 por papel, 404 por isolamento de conta e 400 por campos desconhecidos, nulos e datas ou horários inválidos. Há um caso específico que consulta o histórico quando o ID da pessoa agendada difere do ID da conta autenticada.
+
+## Atualizacao: concorrencia e auditoria completa
+
+Antes de iniciar a API atualizada, execute npm run db:setup. O setup e aditivo: os campos novos de historico sao opcionais para preservar eventos antigos, e as colunas legadas de excedentes permanecem no banco. Nao use reset nem opcoes de aceitar perda de dados. O trigger de estados verifica novas escritas, sem reescrever reservas antigas.
+
+O cliente deve enviar o updatedAt da reserva que esta exibindo como updatedAtEsperado, tanto no PATCH quanto nas acoes. Versao ausente ou invalida retorna 400; versao antiga retorna 409. A tela recarrega a reserva em conflito e exige revisao antes de outra tentativa. Nao existe reenvio automatico. A API antiga sem versao deixa de ser compativel.
+
+O historico informa tipoEvento (CRIACAO, EDICAO ou TRANSICAO). Edicoes armazenam dadosAnteriores e dadosNovos do agendamento, autor e timestamp na mesma transacao. Alteracoes sem diferenca nao mudam a versao nem geram evento. Eventos legados sao classificados na leitura; nao ha inventario retroativo de valores que nunca foram registrados.
+
+Check-in revalida as guardas depois de adquirir os locks. Horarios reais sao gerados pelo repositorio no momento da gravacao. O PostgreSQL tambem rejeita transicoes ilegais, alteracoes de agendamento fora de PENDENTE e inconsistencias de check-in/checkout. A geracao do historico continua sendo responsabilidade das transacoes da aplicacao; scripts administrativos precisam seguir o mesmo contrato.
+
+Nao ha cobranca de excedentes. Os campos de excedentes foram retirados do contrato ativo, mas suas colunas ficam preservadas. Cada cadastro cria explicitamente ADMIN da propria conta, sem acesso global ou agenda compartilhada.
+
+Configure NEXT_PUBLIC_API_URL no frontend e CORS_ORIGINS no backend (origens separadas por virgula). Os exemplos estao em .env.example e nao contem credenciais reais. Padroes locais: API http://localhost:8000 e frontend http://localhost:3000. A URL publica do frontend e incorporada no build.
+
+Execute npm run db:check para verificar tabelas, campos de auditoria, constraints, indice e triggers ativos. O teste PostgreSQL tambem cobre edicoes concorrentes e rollback de edicao quando o historico falha.

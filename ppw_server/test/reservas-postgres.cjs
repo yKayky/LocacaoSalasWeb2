@@ -44,7 +44,7 @@ async function main() {
     await client.query(ddl);
     let constraints = await fs.readFile(path.join(__dirname, '../prisma/constraints.sql'), 'utf8');
     for (const name of tables) constraints = constraints.replace(new RegExp(`\\b${name}\\b`, 'g'), `${prefix}${name}`);
-    for (const name of ['proteger_historico_reserva', 'reservas_sem_sobreposicao', 'reservas_um_uso_por_espaco']) {
+    for (const name of ['proteger_historico_reserva', 'reservas_sem_sobreposicao', 'reservas_um_uso_por_espaco', 'validar_estado_reserva']) {
       constraints = constraints.replaceAll(name, `${prefix}${name}`);
     }
     await client.query(constraints);
@@ -77,16 +77,32 @@ async function main() {
     assert.equal(aposFalha.updatedAt, reserva.updatedAt);
     assert.equal((await repository.findHistory(reserva.id, conta.id)).length, 1);
 
+    // Audit insertion failure must roll back an edit and its version.
+    const editavel = await repository.create({ ...dados, data: '2030-01-22' }, conta.id);
+    await client.query(`CREATE FUNCTION bi3041468."${prefix}falhar_edicao"() RETURNS trigger LANGUAGE plpgsql AS $edit$ BEGIN IF NEW.tipo_evento = 'EDICAO' THEN RAISE EXCEPTION 'Falha de auditoria de teste'; END IF; RETURN NEW; END; $edit$`);
+    await client.query(`CREATE TRIGGER falhar_edicao BEFORE INSERT ON ${table('historico_reservas')} FOR EACH ROW EXECUTE FUNCTION bi3041468."${prefix}falhar_edicao"()`);
+    await assert.rejects(() => repository.update(editavel.id, { horarioFim: '11:00' }, editavel.updatedAt, conta.id));
+    assert.equal((await repository.findById(editavel.id, conta.id)).horarioFim, '10:00');
+    assert.equal((await repository.findById(editavel.id, conta.id)).updatedAt, editavel.updatedAt);
+    assert.equal((await repository.findHistory(editavel.id, conta.id)).length, 1);
+    await client.query(`DROP TRIGGER falhar_edicao ON ${table('historico_reservas')}`);
+
     // The database also protects direct writes outside the repository.
     await assert.rejects(() => prisma.reserva.create({ data: { ...dados, data: new Date('2030-01-10T00:00:00Z') } }));
-    const primeiroUso = await prisma.reserva.create({ data: {
-      ...dados, data: new Date('2030-01-30T00:00:00Z'), status: 'EM_ANDAMENTO',
-    } });
+    const primeiroUso = await prisma.reserva.create({ data: { ...dados, data: new Date('2030-01-30T00:00:00Z') } });
+    await assert.rejects(() => prisma.reserva.update({ where: { id: primeiroUso.id }, data: { status: 'FINALIZADA' } }));
+    await prisma.reserva.update({ where: { id: primeiroUso.id }, data: { status: 'CONFIRMADA' } });
+    await assert.rejects(() => prisma.reserva.update({ where: { id: primeiroUso.id }, data: { status: 'EM_ANDAMENTO' } }));
+    await prisma.reserva.update({ where: { id: primeiroUso.id }, data: { status: 'EM_ANDAMENTO', checkInReal: new Date() } });
+    const segundoUso = await prisma.reserva.create({ data: { ...dados, data: new Date('2030-01-31T00:00:00Z') } });
+    await prisma.reserva.update({ where: { id: segundoUso.id }, data: { status: 'CONFIRMADA' } });
+    await assert.rejects(() => prisma.reserva.update({ where: { id: segundoUso.id }, data: { status: 'EM_ANDAMENTO', checkInReal: new Date() } }));
     await assert.rejects(() => prisma.reserva.create({ data: {
       ...dados, data: new Date('2030-01-31T00:00:00Z'), status: 'EM_ANDAMENTO',
     } }));
-    await prisma.reserva.update({ where: { id: primeiroUso.id }, data: { status: 'FINALIZADA' } });
+    await prisma.reserva.update({ where: { id: primeiroUso.id }, data: { status: 'FINALIZADA', checkOutReal: new Date() } });
     const historico = (await repository.findHistory(reserva.id, conta.id))[0];
+    await assert.rejects(() => prisma.historicoReserva.update({ where: { idRegistro: historico.idRegistro }, data: { justificativa: 'Alterado' } }));
     await assert.rejects(() => prisma.historicoReserva.delete({ where: { idRegistro: historico.idRegistro } }));
     await assert.rejects(() => prisma.conta.delete({ where: { id: conta.id } }));
     const outraConta = await prisma.conta.create({ data: { nome: 'Outra conta' } });
@@ -101,7 +117,7 @@ async function main() {
     if (connected) {
       assert.match(prefix, /^v_[a-f0-9]{12}_$/);
       await client.query(`DROP TABLE IF EXISTS ${tables.map(table).join(', ')} CASCADE`);
-      await client.query(`DROP FUNCTION IF EXISTS bi3041468."${prefix}proteger_historico_reserva"()`);
+      await client.query(`DROP FUNCTION IF EXISTS bi3041468."${prefix}proteger_historico_reserva"(), bi3041468."${prefix}validar_estado_reserva"(), bi3041468."${prefix}falhar_edicao"()`);
     }
     await client.end().catch(() => {});
     assert.equal(path.dirname(directory), cacheRoot);

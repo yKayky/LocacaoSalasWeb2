@@ -1,5 +1,5 @@
 {
-  "name": "agenda-clinica-server",
+  "name": "locacao-salas-server",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -17,8 +17,9 @@
     "test:postgres": "node test/reservas-postgres.cjs",
     "dev": "nest start --watch",
     "db:constraints": "node scripts/database-constraints.cjs",
-    "db:setup": "prisma db push && prisma generate && npm run db:constraints",
-    "postinstall": "prisma generate"
+    "db:setup": "prisma db push && prisma generate && npm run db:constraints && npm run db:check",
+    "postinstall": "prisma generate",
+    "db:check": "node scripts/database-constraints.cjs --check"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",

@@ -1,7 +1,10 @@
-import { IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsISO8601, IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { AcaoReserva } from '../../domain/entities/reserva-transicao';
 
 export class AcaoReservaDto {
+  @IsISO8601({ strict: true })
+  updatedAtEsperado!: string;
+
   @IsIn(['CONFIRMAR', 'INICIAR', 'FINALIZAR', 'CANCELAR'])
   acao!: AcaoReserva;
 

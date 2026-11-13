@@ -3,6 +3,7 @@ import { PrismaService } from '../../../database/prisma.service';
 import { Prisma, Reserva as PrismaReserva } from '@prisma/client';
 import { Reserva, StatusReserva } from '../../domain/entities/reserva.entity';
 import { DadosEdicaoReserva, DadosNovaReserva, ReservaHistorico, ReservaRepository, TransicaoAuditoria } from '../../domain/repositories/reserva.repository';
+import { dadosAgendamento } from '../../domain/entities/reserva-auditoria';
 import { transicaoPermitida } from '../../domain/entities/reserva-transicao';
 
 @Injectable()
@@ -52,8 +53,6 @@ export class ReservaPrismaRepository implements ReservaRepository {
       updatedAt: record.updatedAt.toISOString(),
       checkInReal: record.checkInReal?.toISOString(),
       checkOutReal: record.checkOutReal?.toISOString(),
-      tempoExcedenteMinutos: record.tempoExcedenteMinutos ?? undefined,
-      valorExcedente: record.valorExcedente == null ? undefined : Number(record.valorExcedente),
     });
   }
 
@@ -68,11 +67,12 @@ export class ReservaPrismaRepository implements ReservaRepository {
   }
 
   async findHistory(id: number, contaId: number): Promise<ReservaHistorico[]> {
-    return this.prisma.historicoReserva.findMany({
+    const registros = await this.prisma.historicoReserva.findMany({
       where: { reservaId: id, reserva: { contaId } },
       include: { autor: { select: { id: true, nome: true } } },
       orderBy: [{ timestamp: 'asc' }, { idRegistro: 'asc' }],
     });
+    return registros.map((registro) => ({ ...registro, tipoEvento: registro.tipoEvento ?? (registro.estadoAnterior === null ? 'CRIACAO' : 'TRANSICAO') }));
   }
 
   async create(
@@ -99,6 +99,8 @@ export class ReservaPrismaRepository implements ReservaRepository {
       });
       await tx.historicoReserva.create({
         data: {
+          tipoEvento: 'CRIACAO',
+          dadosNovos: dadosAgendamento(this.toEntity(criada)),
           reservaId: criada.id,
           estadoAnterior: null,
           novoEstado: 'PENDENTE',
@@ -127,6 +129,9 @@ export class ReservaPrismaRepository implements ReservaRepository {
       if (atual.status !== 'PENDENTE' || atual.updatedAt.toISOString() !== updatedAtEsperado) {
         throw new ConflictException('A reserva foi alterada. Atualize a página antes de editar.');
       }
+      const antes = dadosAgendamento(this.toEntity(atual));
+      const depois = { ...antes, ...Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)) };
+      if (JSON.stringify(antes) === JSON.stringify(depois)) return atual;
       updateData.updatedAt = new Date(Math.max(Date.now(), atual.updatedAt.getTime() + 1));
 
       const slotAnterior = {
@@ -150,7 +155,13 @@ export class ReservaPrismaRepository implements ReservaRepository {
         id,
       );
 
-      return tx.reserva.update({ where: { id }, data: updateData });
+      const editada = await tx.reserva.update({ where: { id }, data: updateData });
+      await tx.historicoReserva.create({ data: {
+        reservaId: id, tipoEvento: 'EDICAO', estadoAnterior: atual.status, novoEstado: atual.status,
+        autorId: contaId, justificativa: 'Agendamento alterado.', dadosAnteriores: antes,
+        dadosNovos: dadosAgendamento(this.toEntity(editada)),
+      } });
+      return editada;
     });
     return reserva ? this.toEntity(reserva) : null;
   }
@@ -188,12 +199,14 @@ export class ReservaPrismaRepository implements ReservaRepository {
         }
       }
 
+      const instante = new Date();
+      auditoria.validarSobLock?.(this.toEntity(atual), instante);
       const dadosReserva: Prisma.ReservaUpdateManyMutationInput = {
         status: novoEstado,
         updatedAt: new Date(Math.max(Date.now(), atual.updatedAt.getTime() + 1)),
       };
-      if (auditoria.checkInReal) dadosReserva.checkInReal = new Date(auditoria.checkInReal);
-      if (auditoria.checkOutReal) dadosReserva.checkOutReal = new Date(auditoria.checkOutReal);
+      if (novoEstado === 'EM_ANDAMENTO') dadosReserva.checkInReal = instante;
+      if (novoEstado === 'FINALIZADA') dadosReserva.checkOutReal = instante;
 
       const resultado = await tx.reserva.updateMany({
         where: { id, contaId, status: estadoEsperado },
@@ -203,6 +216,7 @@ export class ReservaPrismaRepository implements ReservaRepository {
 
       await tx.historicoReserva.create({
         data: {
+          tipoEvento: 'TRANSICAO',
           reservaId: id,
           estadoAnterior: estadoEsperado,
           novoEstado,

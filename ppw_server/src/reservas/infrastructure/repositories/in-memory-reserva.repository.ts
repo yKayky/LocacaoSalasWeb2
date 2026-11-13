@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { Reserva } from '../../domain/entities/reserva.entity';
 import { DadosEdicaoReserva, DadosNovaReserva, ReservaHistorico, ReservaRepository, TransicaoAuditoria } from '../../domain/repositories/reserva.repository';
 import { StatusReserva } from '../../domain/entities/reserva.entity';
+import { dadosAgendamento } from '../../domain/entities/reserva-auditoria';
 import { transicaoPermitida } from '../../domain/entities/reserva-transicao';
 
 @Injectable()
@@ -24,8 +25,12 @@ export class InMemoryReservaRepository implements ReservaRepository {
     novoEstado: StatusReserva,
     autorId: number,
     justificativa: string,
+    tipoEvento: ReservaHistorico['tipoEvento'] = estadoAnterior === null ? 'CRIACAO' : 'TRANSICAO',
+    dadosAnteriores: unknown = null,
+    dadosNovos: unknown = null,
   ): void {
     this.historicos.push({
+      tipoEvento, dadosAnteriores, dadosNovos,
       idRegistro: this.historicos.length + 1,
       reservaId,
       estadoAnterior,
@@ -50,7 +55,7 @@ export class InMemoryReservaRepository implements ReservaRepository {
   findHistory(id: number, contaId: number): ReservaHistorico[] {
     if (!this.reservas.some((reserva) => reserva.id === id && reserva.contaId === contaId)) return [];
     return this.historicos.filter((registro) => registro.reservaId === id)
-      .map((registro) => ({ ...registro, timestamp: new Date(registro.timestamp) }));
+      .map((registro) => ({ ...structuredClone(registro), timestamp: new Date(registro.timestamp) }));
   }
 
   async create(
@@ -68,7 +73,7 @@ export class InMemoryReservaRepository implements ReservaRepository {
       updatedAt: agora,
     });
     this.reservas.push(nova);
-    this.registrarHistorico(id, null, 'PENDENTE', autorId, 'Reserva criada.');
+    this.registrarHistorico(id, null, 'PENDENTE', autorId, 'Reserva criada.', 'CRIACAO', null, dadosAgendamento(nova));
     return Promise.resolve({ ...nova });
   }
 
@@ -93,11 +98,13 @@ export class InMemoryReservaRepository implements ReservaRepository {
       updatedAt: new Date(Math.max(Date.now(), Date.parse(atual.updatedAt) + 1)).toISOString(),
       checkInReal: atual.checkInReal,
       checkOutReal: atual.checkOutReal,
-      tempoExcedenteMinutos: atual.tempoExcedenteMinutos,
-      valorExcedente: atual.valorExcedente,
     });
 
+    const antes = dadosAgendamento(atual);
+    const depois = dadosAgendamento(atualizada);
+    if (JSON.stringify(antes) === JSON.stringify(depois)) return { ...atual };
     this.ensureSlotAvailable(atualizada, id);
+    this.registrarHistorico(id, atual.status, atual.status, contaId, 'Agendamento alterado.', 'EDICAO', antes, depois);
     this.reservas[index] = atualizada;
     return Promise.resolve({ ...atualizada });
   }
@@ -122,11 +129,13 @@ export class InMemoryReservaRepository implements ReservaRepository {
     )) {
       throw new ConflictException('O espaço está em uso. Finalize o check-out da reserva anterior.');
     }
+    const instante = new Date();
+    auditoria.validarSobLock?.({ ...atual }, instante);
     this.registrarHistorico(id, estadoEsperado, novoEstado, auditoria.autorId, auditoria.justificativa);
     atual.status = novoEstado;
     atual.updatedAt = new Date(Math.max(Date.now(), Date.parse(atual.updatedAt) + 1)).toISOString();
-    if (auditoria.checkInReal) atual.checkInReal = auditoria.checkInReal;
-    if (auditoria.checkOutReal) atual.checkOutReal = auditoria.checkOutReal;
+    if (novoEstado === 'EM_ANDAMENTO') atual.checkInReal = instante.toISOString();
+    if (novoEstado === 'FINALIZADA') atual.checkOutReal = instante.toISOString();
     return { ...atual };
   }
 

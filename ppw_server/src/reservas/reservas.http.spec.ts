@@ -14,6 +14,7 @@ import { InMemoryReservaRepository } from './infrastructure/repositories/in-memo
 
 describe('API de reservas e isolamento de contas', () => {
   let app: INestApplication;
+  let versao: string;
 
   beforeEach(async () => {
     const pessoas = new InMemoryUsuarioRepository();
@@ -24,6 +25,7 @@ describe('API de reservas e isolamento de contas', () => {
       const espaco = await espacos.create({ contaId, nome: 'Sala', descricao: 'Sala', capacidade: 4, localizacao: 'Bloco A', valorPorHora: 20 });
       await reservas.create({ contaId, usuarioId: pessoa.id, espacoId: espaco.id, data: '2030-01-10', horarioInicio: '09:00', horarioFim: '10:00' }, contaId);
     }
+    versao = (await reservas.findById(1, 1))!.updatedAt;
     const module = await Test.createTestingModule({ imports: [PrismaModule, ReservasModule] })
       .overrideProvider(PrismaService).useValue({})
       .overrideProvider(UsuarioRepository).useValue(pessoas)
@@ -45,6 +47,30 @@ describe('API de reservas e isolamento de contas', () => {
 
   afterEach(async () => { await app.close(); });
 
+  it('requires an explicit version and rejects stale edits and actions', async () => {
+    const server = app.getHttpServer();
+    await request(server).patch('/reservas/1').set('Cookie', 'locacao_session=kayky')
+      .send({ horarioFim: '11:00' }).expect(400);
+    await request(server).post('/reservas/1/acoes').set('Cookie', 'locacao_session=kayky')
+      .send({ acao: 'CONFIRMAR', justificativa: 'Teste.' }).expect(400);
+    const editada = await request(server).patch('/reservas/1').set('Cookie', 'locacao_session=kayky')
+      .send({ updatedAtEsperado: versao, horarioFim: '11:00' }).expect(200);
+    expect(editada.body.updatedAt).not.toBe(versao);
+    await request(server).patch('/reservas/1').set('Cookie', 'locacao_session=kayky')
+      .send({ updatedAtEsperado: versao, horarioFim: '12:00' }).expect(409);
+    await request(server).post('/reservas/1/acoes').set('Cookie', 'locacao_session=kayky')
+      .send({ updatedAtEsperado: versao, acao: 'CONFIRMAR', justificativa: 'Teste.' }).expect(409);
+    const historico = await request(server).get('/reservas/1/historico').set('Cookie', 'locacao_session=kayky').expect(200);
+    expect(historico.body).toHaveLength(2);
+    expect(historico.body[1]).toMatchObject({ tipoEvento: 'EDICAO', autorId: 1,
+      dadosAnteriores: { horarioFim: '10:00' }, dadosNovos: { horarioFim: '11:00' } });
+    const semMudanca = await request(server).patch('/reservas/1').set('Cookie', 'locacao_session=kayky')
+      .send({ updatedAtEsperado: editada.body.updatedAt, horarioFim: '11:00' }).expect(200);
+    expect(semMudanca.body.updatedAt).toBe(editada.body.updatedAt);
+    const final = await request(server).get('/reservas/1/historico').set('Cookie', 'locacao_session=kayky').expect(200);
+    expect(final.body).toHaveLength(2);
+  });
+
   it('exige sessão para reservas e cadastros', async () => {
     for (const route of ['/reservas', '/usuarios', '/espacos']) {
       await request(app.getHttpServer()).get(route).expect(401);
@@ -53,23 +79,23 @@ describe('API de reservas e isolamento de contas', () => {
 
   it('rejeita status arbitrário e autor forjado', async () => {
     await request(app.getHttpServer()).patch('/reservas/1')
-      .set('Cookie', 'locacao_session=kayky').send({ status: 'CONFIRMADA' }).expect(400);
+      .set('Cookie', 'locacao_session=kayky').send({ updatedAtEsperado: versao, status: 'CONFIRMADA' }).expect(400);
     await request(app.getHttpServer()).post('/reservas/1/acoes')
       .set('Cookie', 'locacao_session=kayky')
-      .send({ acao: 'CONFIRMAR', justificativa: 'Aprovação.', autorId: 2 }).expect(400);
+      .send({ updatedAtEsperado: versao, acao: 'CONFIRMAR', justificativa: 'Aprovação.', autorId: 2 }).expect(400);
   });
 
   it('rejeita campos nulos, datas inexistentes e horários impossíveis', async () => {
     for (const dados of [{ horarioInicio: null }, { horarioFim: '99:99' }, { data: '2026-02-30' }]) {
       await request(app.getHttpServer()).patch('/reservas/1')
-        .set('Cookie', 'locacao_session=kayky').send(dados).expect(400);
+        .set('Cookie', 'locacao_session=kayky').send({ ...dados, updatedAtEsperado: versao }).expect(400);
     }
   });
 
   it('mantém a restrição de ação por papel', async () => {
     await request(app.getHttpServer()).post('/reservas/1/acoes')
       .set('Cookie', 'locacao_session=cliente')
-      .send({ acao: 'CONFIRMAR', justificativa: 'Tentativa.' }).expect(403);
+      .send({ updatedAtEsperado: versao, acao: 'CONFIRMAR', justificativa: 'Tentativa.' }).expect(403);
   });
 
   it('cada conta lista somente suas pessoas, salas e reservas', async () => {
@@ -90,8 +116,10 @@ describe('API de reservas e isolamento de contas', () => {
         .send({ nome: 'Alterado' }).expect(404);
       await request(app.getHttpServer()).delete(route).set('Cookie', 'locacao_session=outra').expect(404);
     }
+    await request(app.getHttpServer()).patch('/reservas/1').set('Cookie', 'locacao_session=outra')
+      .send({ updatedAtEsperado: versao, horarioFim: '11:00' }).expect(404);
     await request(app.getHttpServer()).post('/reservas/1/acoes').set('Cookie', 'locacao_session=outra')
-      .send({ acao: 'CANCELAR', justificativa: 'Tentativa.' }).expect(404);
+      .send({ updatedAtEsperado: versao, acao: 'CANCELAR', justificativa: 'Tentativa.' }).expect(404);
   });
 
   it('agenda para uma pessoa cadastrada pela conta, distinta da identidade de login', async () => {
@@ -119,7 +147,7 @@ describe('API de reservas e isolamento de contas', () => {
 
   it('registra a conta autenticada como autora da mudança de estado', async () => {
     await request(app.getHttpServer()).post('/reservas/1/acoes').set('Cookie', 'locacao_session=kayky')
-      .send({ acao: 'CONFIRMAR', justificativa: 'Aprovação.' }).expect(201);
+      .send({ updatedAtEsperado: versao, acao: 'CONFIRMAR', justificativa: 'Aprovação.' }).expect(201);
     const historico = await request(app.getHttpServer()).get('/reservas/1/historico')
       .set('Cookie', 'locacao_session=kayky').expect(200);
     expect(historico.body.at(-1)).toMatchObject({ estadoAnterior: 'PENDENTE', novoEstado: 'CONFIRMADA', autorId: 1 });

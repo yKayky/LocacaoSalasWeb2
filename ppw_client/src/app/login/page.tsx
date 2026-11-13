@@ -57,7 +57,7 @@ export default function LoginPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Conta do CoworkSpace</h1>
         <p className="mt-2 text-sm text-slate-400">
-          Entre para criar e gerenciar reservas com permissões vinculadas à sua conta.
+          Cada cadastro cria uma conta independente. Você administra somente suas próprias salas, pessoas e reservas.
         </p>
       </div>
 

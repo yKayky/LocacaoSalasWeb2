@@ -16,11 +16,14 @@ export class TransicionarReservaUseCase {
     private readonly guardas: readonly GuardaTransicaoReserva[] = [new HorarioCheckInGuarda()],
   ) {}
 
-  async execute(id: number, acao: AcaoReserva, justificativa: string, actor: AuthenticatedUser): Promise<Reserva> {
+  async execute(id: number, acao: AcaoReserva, justificativa: string, actor: AuthenticatedUser, updatedAtEsperado: string): Promise<Reserva> {
     const reserva = await this.reservaRepository.findById(id, actor.id);
     if (!reserva) throw new NotFoundException('Reserva não encontrada.');
     if (!justificativa.trim()) throw new BadRequestException('A justificativa é obrigatória.');
     ReservaPermissaoPolicy.validarTransicao(actor, acao, reserva.contaId);
+    if (reserva.updatedAt !== updatedAtEsperado) {
+      throw new ConflictException('A reserva foi alterada. Atualize a pagina antes de executar a acao.');
+    }
     let status: Reserva['status'];
     const agora = new Date();
     try {
@@ -33,12 +36,17 @@ export class TransicionarReservaUseCase {
       throw error;
     }
     const atualizado = await this.reservaRepository.transitionStatus(id, reserva.status, status, {
-      updatedAtEsperado: reserva.updatedAt,
+      updatedAtEsperado,
+      validarSobLock: (atual, instante) => {
+        try { validarGuardasTransicao(this.guardas, acao, atual, instante); }
+        catch (error) {
+          if (error instanceof GuardaReservaViolada) throw new BadRequestException(error.message);
+          throw error;
+        }
+      },
       autorId: actor.id,
       contaId: actor.id,
       justificativa: justificativa.trim(),
-      ...(acao === 'INICIAR' ? { checkInReal: agora.toISOString() } : {}),
-      ...(acao === 'FINALIZAR' ? { checkOutReal: agora.toISOString() } : {}),
     });
     if (!atualizado) {
       const atual = await this.reservaRepository.findById(id, actor.id);
